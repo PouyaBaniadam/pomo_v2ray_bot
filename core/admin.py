@@ -22,6 +22,7 @@ from core.models import (
 )
 from core.services import (
     send_telegram_message_sync,
+    build_service_actions_reply_markup_sync,
     approve_transaction_sync,
     get_all_active_user_ids_sync,
 )
@@ -230,7 +231,11 @@ class TransactionAdmin(ModelAdmin):
                     f"💳 موجودی باقیمانده کیف پول: <b>{tx.user.wallet_balance:,} تومان</b>\n\n"
                     f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
                     f"<code>{auto_order.config_link}</code>\n\n"
-                    f"💡 از بخش «🔍 سرویس (های) من» نیز می‌توانید بارکد (QR Code) این سرویس را دریافت کنید.",
+                    f"💡 از دکمه‌های زیر می‌توانید لینک را کپی کنید یا QR Code آن را دریافت نمایید:",
+                    reply_markup=build_service_actions_reply_markup_sync(
+                        auto_order.id,
+                        auto_order.config_link,
+                    ),
                 )
             else:
                 send_telegram_message_sync(
@@ -417,9 +422,14 @@ class SubscriptionOrderAdmin(ModelAdmin):
                     order.user.telegram_id,
                     f"🎉 <b>سرویس شما آماده و فعال شد!</b>\n\n"
                     f"🏷 نام سرویس: <code>{order.custom_name}</code>\n"
-                    f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n"
+                    f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n\n"
                     f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
-                    f"<code>{order.config_link}</code>",
+                    f"<code>{order.config_link}</code>\n\n"
+                    f"💡 از دکمه‌های زیر می‌توانید لینک را کپی کنید یا QR Code آن را دریافت نمایید:",
+                    reply_markup=build_service_actions_reply_markup_sync(
+                        order.id,
+                        order.config_link,
+                    ),
                 )
                 success_count += 1
 
@@ -450,10 +460,14 @@ class SubscriptionOrderAdmin(ModelAdmin):
                 f"🎉 <b>سرویس شما آماده و فعال شد!</b>\n\n"
                 f"🏷 نام سرویس: <code>{obj.custom_name}</code>\n"
                 f"📦 نوع سفارش: {obj.get_order_type_display()}\n"
-                f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n"
+                f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n\n"
                 f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
                 f"<code>{obj.config_link}</code>\n\n"
-                f"💡 روی لینک بالا ضربه بزنید تا کپی شود و سپس داخل برنامه V2rayNG یا Streisand وارد کنید.",
+                f"💡 از دکمه‌های زیر می‌توانید لینک را کپی کنید یا QR Code آن را دریافت نمایید:",
+                reply_markup=build_service_actions_reply_markup_sync(
+                    obj.id,
+                    obj.config_link,
+                ),
             )
         super().save_model(
             request,

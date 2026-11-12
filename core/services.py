@@ -45,9 +45,42 @@ def get_all_admin_ids() -> list[int]:
     return get_all_admin_ids_sync()
 
 
+def build_service_actions_reply_markup_sync(
+    order_id: int,
+    config_link: str,
+) -> dict:
+    clean_link = (config_link or "").strip()
+    if 0 < len(clean_link) <= 256:
+        return {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "📋 کپی لینک کانفیگ",
+                        "copy_text": {"text": clean_link},
+                    },
+                    {
+                        "text": "📷 دریافت QR Code",
+                        "callback_data": f"get_qr:{order_id}",
+                    },
+                ]
+            ]
+        }
+    return {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "📷 دریافت QR Code",
+                    "callback_data": f"get_qr:{order_id}",
+                }
+            ]
+        ]
+    }
+
+
 def send_telegram_message_sync(
     chat_id: int,
     text: str,
+    reply_markup: dict | None = None,
 ):
     if not settings.BOT_TOKEN:
         return False
@@ -57,6 +90,8 @@ def send_telegram_message_sync(
         "text": text,
         "parse_mode": "HTML",
     }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     try:
         resp = requests.post(
             url,
@@ -360,7 +395,11 @@ def upsert_telegram_user(
                 f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n\n"
                 f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
                 f"<code>{gift_order.config_link}</code>\n\n"
-                f"💡 از بخش «🔍 سرویس (های) من» می‌توانید همیشه به این لینک و بارکد آن دسترسی داشته باشید.",
+                f"💡 از دکمه‌های زیر می‌توانید لینک را کپی کنید یا QR Code آن را دریافت نمایید:",
+                reply_markup=build_service_actions_reply_markup_sync(
+                    gift_order.id,
+                    gift_order.config_link,
+                ),
             )
             for aid in admin_ids:
                 send_telegram_message_sync(
