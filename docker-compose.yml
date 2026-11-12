@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     restart: always
     environment:
-      POSTGRES_DB: pomo2raybot_db
+      POSTGRES_DB: pomo2vraybot_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
