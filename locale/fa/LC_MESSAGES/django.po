@@ -1,0 +1,70 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Language: fa\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Filters"
+msgstr "فیلترها"
+
+msgid "Type to search"
+msgstr "برای جستجو تایپ کنید"
+
+msgid "No results found"
+msgstr "هیچ نتیجه‌ای یافت نشد"
+
+msgid "This page yielded into no results. Create a new item or reset your filters."
+msgstr "این صفحه نتیجه‌ای در بر نداشت. یک آیتم جدید بسازید یا فیلترها را ریست کنید."
+
+msgid "Reset filters"
+msgstr "حذف فیلترها"
+
+msgid "Raw passwords are not stored, so there is no way to see the user’s password."
+msgstr "گذرواژه‌ها به صورت خام ذخیره نمی‌شوند، بنابراین امکان مشاهده گذرواژه کاربر وجود ندارد."
+
+msgid "General"
+msgstr "عمومی"
+
+msgid "Select value"
+msgstr "انتخاب کنید"
+
+msgid "Choose file to upload"
+msgstr "انتخاب فایل برای بارگذاری"
+
+msgid "Dark"
+msgstr "تیره"
+
+msgid "Light"
+msgstr "روشن"
+
+msgid "System"
+msgstr "سیستم"
+
+msgid "This item will be deleted."
+msgstr "این آیتم حذف می‌شود."
+
+msgid "Click to cancel"
+msgstr "برای کنسل کرد کلیک کنید."
+
+msgid "Select action"
+msgstr "عملیات را انتخاب کنید."
+
+msgid "Please correct the error below."
+msgid_plural "Please correct the errors below."
+msgstr[0] "لطفاً خطاهای زیر را اصلاح کنید."
+msgstr[1] "لطفاً خطاهای زیر را اصلاح کنید."
+
+msgid "Welcome back to"
+msgstr "خوش آمدید"
+
+msgid "You have been successfully logged out from the administration"
+msgstr "شما با موفقیت از پنل ادمین خارج شدید"
+
+msgid "Return to site"
+msgstr "به سایت بازگردید"
+
+msgid "Run"
+msgstr "اجرا"
+

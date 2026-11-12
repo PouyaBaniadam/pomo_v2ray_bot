@@ -1,0 +1,43 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="anyio" />
+          <option value="click" />
+          <option value="filelock" />
+          <option value="greenlet" />
+          <option value="grpcio" />
+          <option value="huggingface_hub" />
+          <option value="idna" />
+          <option value="mmh3" />
+          <option value="numpy" />
+          <option value="onnxruntime" />
+          <option value="portalocker" />
+          <option value="protobuf" />
+          <option value="psycopg" />
+          <option value="psycopg-binary" />
+          <option value="pydantic" />
+          <option value="pydantic_core" />
+          <option value="qdrant-client" />
+          <option value="SQLAlchemy" />
+          <option value="tokenizers" />
+          <option value="tqdm" />
+          <option value="urllib3" />
+          <option value="uvicorn" />
+          <option value="websockets" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyStringConversionWithoutDunderMethodInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredTypes">
+        <list>
+          <option value="types.NoneType" />
+          <option value="django.utils.functional._StrPromise" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
