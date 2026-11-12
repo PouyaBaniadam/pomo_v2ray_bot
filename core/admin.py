@@ -224,7 +224,7 @@ class TransactionAdmin(ModelAdmin):
                 )
                 send_telegram_message_sync(
                     tx.user.telegram_id,
-                    f"🎉 <b>پرداخت شما تایید شد و سرویس شما به صورت آنی فعال گردید!</b>\n\n"
+                    f"🎉 <b>پرداخت شما تایید شد و سرویس شما فعال گردید!</b>\n\n"
                     f"🏷 نام سرویس: <code>{auto_order.custom_name}</code>\n"
                     f"📦 بسته: {auto_order.plan.title}\n"
                     f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n"

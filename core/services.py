@@ -391,7 +391,7 @@ def upsert_telegram_user(
             send_telegram_message_sync(
                 referrer.telegram_id,
                 f"🎉 <b>تبریک! شما به {referrer.valid_referrals_count} دعوت موفق رسیدید!</b>\n\n"
-                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> به صورت آنی برای شما فعال شد!\n"
+                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> برای شما فعال شد!\n"
                 f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n\n"
                 f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
                 f"<code>{gift_order.config_link}</code>\n\n"

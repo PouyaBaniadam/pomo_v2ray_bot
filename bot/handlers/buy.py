@@ -402,7 +402,7 @@ async def execute_purchase(
             include_time=False,
         )
         instant_text = (
-            f"🎉 <b>خرید شما انجام شد و سرویس به صورت آنی فعال گردید!</b>\n\n"
+            f"🎉 <b>خرید شما انجام شد و سرویس فعال گردید!</b>\n\n"
             f"🏷 نام سرویس: <code>{sname}</code>\n"
             f"📦 بسته: {order.plan.title}\n"
             f"📅 تاریخ خرید: <b>{order_date}</b>\n"

@@ -662,7 +662,7 @@ async def admin_approve_receipt_callback(
                     include_time=False,
                 )
                 user_msg = (
-                    f"🎉 <b>پرداخت شما تایید شد و سرویس شما به صورت آنی فعال گردید!</b>\n\n"
+                    f"🎉 <b>پرداخت شما تایید شد و سرویس شما فعال گردید!</b>\n\n"
                     f"🏷 نام سرویس: <code>{auto_order.custom_name}</code>\n"
                     f"📦 بسته: {auto_order.plan.title}\n"
                     f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n"
