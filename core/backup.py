@@ -10,6 +10,7 @@ import zipfile
 from datetime import timedelta
 
 from aiogram import Bot
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import FSInputFile
 from asgiref.sync import sync_to_async
 from django.conf import settings
@@ -58,23 +59,19 @@ def cleanup_old_backup_files(
 
 
 @sync_to_async
-def get_backup_runtime_state() -> tuple[bool, int, timezone.datetime | None, dict]:
+def get_backup_runtime_state() -> tuple[bool, int, timezone.datetime | None]:
     setting, _ = BotSetting.objects.get_or_create(id=1)
     return (
         bool(setting.backup_enabled),
         max(1, int(setting.backup_interval_minutes or 5)),
         setting.last_backup_at,
-        dict(setting.last_backup_messages or {}),
     )
 
 
 @sync_to_async
-def update_backup_runtime_state(
-    msg_map: dict[str, int],
-):
+def update_backup_runtime_timestamp():
     BotSetting.objects.filter(id=1).update(
         last_backup_at=timezone.now(),
-        last_backup_messages=msg_map,
     )
 
 
@@ -213,11 +210,15 @@ def create_full_backup_zip_sync() -> tuple[str, str, int, str]:
 
 
 async def send_backup_to_admins(
-    bot: Bot,
+    bot: Bot | None = None,
 ) -> tuple[bool, str]:
+    backup_token = getattr(settings, "BACKUP_BOT_TOKEN", "").strip()
+    if not backup_token or "PUT_FULL_BACKUP_BOT_TOKEN_HERE" in backup_token:
+        return False, "BACKUP_BOT_TOKEN is not configured."
+
     async with _BACKUP_LOCK:
         try:
-            _, interval_mins, _, prev_msg_map = await get_backup_runtime_state()
+            _, interval_mins, _ = await get_backup_runtime_state()
             zip_path, zip_filename, size_bytes, db_label = await create_full_backup_zip_sync()
         except Exception as exc:
             logger.exception(f"Failed to build backup zip: {exc}")
@@ -231,68 +232,80 @@ async def send_backup_to_admins(
                 f"حجم فایل بکاپ ({size_mb:.1f} مگابایت) از سقف مجاز تلگرام (۵۰ مگابایت) بیشتر است.",
             )
 
-        admin_ids = await get_all_admin_ids()
-        if not admin_ids:
-            return False, "هیچ ادمینی برای ارسال بکاپ یافت نشد."
+        target_ids = set(await get_all_admin_ids())
+        admin_username = getattr(settings, "ADMIN_TELEGRAM_USERNAME", "Pomoadmin").lower()
 
-        rlm = "\u200f"
-        size_str = (
-            f"{size_bytes / (1024 * 1024):.2f} مگابایت"
-            if size_bytes >= 1024 * 1024
-            else f"{max(1, round(size_bytes / 1024))} کیلوبایت"
+        session = None
+        if getattr(settings, "PROXY_URL", ""):
+            session = AiohttpSession(proxy=settings.PROXY_URL)
+
+        backup_bot = Bot(
+            token=backup_token,
+            session=session,
         )
-        now_j = to_jalali_datetime(timezone.now())
-        date_str = now_j.strftime("%Y/%m/%d") if now_j else "—"
-        time_str = now_j.strftime("%H:%M") if now_j else "—"
-
-        caption = (
-            f"{rlm}🗄 <b>بکاپ کامل سیستم (دیتابیس + مدیا)</b>\n"
-            f"{rlm}📅 تاریخ: <b>{date_str}</b> | ساعت: <b>{time_str}</b>\n"
-            f"{rlm}💾 موتور دیتابیس: <b>{db_label}</b>\n"
-            f"{rlm}📦 حجم فایل: <b>{size_str}</b>\n"
-            f"{rlm}⏱ دوره فعلی: <b>هر {interval_mins} دقیقه</b>\n\n"
-            f"{rlm}<i>فایل بکاپ قبلی به صورت خودکار پاک شد.</i>"
-        )
-
-        new_msg_map: dict[str, int] = {}
-        sent_count = 0
-
-        for aid in admin_ids:
-            aid_key = str(aid)
-            prev_msg_id = prev_msg_map.get(aid_key)
-            if prev_msg_id:
-                try:
-                    await bot.delete_message(
-                        chat_id=aid,
-                        message_id=int(prev_msg_id),
-                    )
-                except Exception:
-                    pass
-
+        try:
             try:
-                sent_msg = await bot.send_document(
-                    chat_id=aid,
-                    document=FSInputFile(
-                        zip_path,
-                        filename=zip_filename,
-                    ),
-                    caption=caption,
-                    parse_mode="HTML",
+                updates = await backup_bot.get_updates(
+                    limit=50,
+                    timeout=1,
                 )
-                new_msg_map[aid_key] = sent_msg.message_id
-                sent_count += 1
-            except Exception as exc:
-                logger.warning(f"Failed to send backup to admin {aid}: {exc}")
+                for upd in updates:
+                    msg_obj = upd.message or upd.edited_message
+                    if msg_obj and msg_obj.from_user:
+                        u_name = (msg_obj.from_user.username or "").lower()
+                        if admin_username and u_name == admin_username:
+                            target_ids.add(msg_obj.from_user.id)
+            except Exception:
+                pass
 
-        await update_backup_runtime_state(new_msg_map)
-        return True, f"بکاپ ({size_str}) با موفقیت به {sent_count} ادمین ارسال شد."
+            if not target_ids:
+                return False, "هیچ ادمینی برای ارسال بکاپ یافت نشد."
+
+            rlm = "\u200f"
+            size_str = (
+                f"{size_bytes / (1024 * 1024):.2f} مگابایت"
+                if size_bytes >= 1024 * 1024
+                else f"{max(1, round(size_bytes / 1024))} کیلوبایت"
+            )
+            now_j = to_jalali_datetime(timezone.now())
+            date_str = now_j.strftime("%Y/%m/%d") if now_j else "—"
+            time_str = now_j.strftime("%H:%M") if now_j else "—"
+
+            caption = (
+                f"{rlm}🗄 <b>بکاپ کامل سیستم (دیتابیس + مدیا)</b>\n"
+                f"{rlm}📅 تاریخ: <b>{date_str}</b> | ساعت: <b>{time_str}</b>\n"
+                f"{rlm}💾 موتور دیتابیس: <b>{db_label}</b>\n"
+                f"{rlm}📦 حجم فایل: <b>{size_str}</b>\n"
+                f"{rlm}⏱ دوره فعلی: <b>هر {interval_mins} دقیقه</b>"
+            )
+
+            sent_count = 0
+            for aid in target_ids:
+                try:
+                    await backup_bot.send_document(
+                        chat_id=aid,
+                        document=FSInputFile(
+                            zip_path,
+                            filename=zip_filename,
+                        ),
+                        caption=caption,
+                        parse_mode="HTML",
+                    )
+                    sent_count += 1
+                except Exception as exc:
+                    logger.warning(f"Failed to send backup via backup_bot to {aid}: {exc}")
+
+            await update_backup_runtime_timestamp()
+            return True, f"بکاپ ({size_str}) با موفقیت به {sent_count} ادمین در ربات بکاپ ارسال شد."
+        finally:
+            await backup_bot.session.close()
 
 
-async def backup_scheduler_loop(bot: Bot):
+async def backup_scheduler_loop(bot: Bot | None = None):
     await asyncio.sleep(10)
     while True:
         try:
-            enabled, interval_mins, last_at, _ = await get_backup_runtime_state()
+            enabled, interval_mins, last_at = await get_backup_runtime_state()
             if enabled:
                 now = timezone.now()
                 is_due = (
@@ -300,7 +313,7 @@ async def backup_scheduler_loop(bot: Bot):
                     or (now - last_at) >= timedelta(minutes=interval_mins)
                 )
                 if is_due:
-                    await send_backup_to_admins(bot)
+                    await send_backup_to_admins()
         except asyncio.CancelledError:
             raise
         except Exception as exc:

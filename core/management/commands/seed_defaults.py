@@ -13,6 +13,8 @@ from core.pasarguard import (
 )
 
 PRESET_WALLET_AMOUNTS = "49000,98000,148000,398000,89000,178000,268000,439000"
+DEFAULT_CHANNEL_URL = "https://t.me/pomo_vpn"
+DEFAULT_SUPPORT_USERNAME = "Pomoadmin"
 
 DEFAULT_STICKERS = {
     "sticker_welcome": "CAACAgIAAxkBAAICKmr11cKbMrKSP8a65Lzz86FTalYuAAIxNAAC6BugStKvp8RmJqK8PQQ",
@@ -43,6 +45,10 @@ class Command(BaseCommand):
                 'max_pending_receipts': 3,
                 'max_open_tickets': 2,
                 'rate_limit_per_minute': 25,
+                'support_username': DEFAULT_SUPPORT_USERNAME,
+                'tutorial_android_url': DEFAULT_CHANNEL_URL,
+                'tutorial_ios_url': DEFAULT_CHANNEL_URL,
+                'tutorial_windows_url': DEFAULT_CHANNEL_URL,
                 'referral_required_count': 3,
                 'referral_gift_title': '۱۰ گیگابایت - ۱ روزه',
                 'referral_gift_days': 1,
@@ -70,6 +76,13 @@ class Command(BaseCommand):
         if setting.wallet_preset_amounts != PRESET_WALLET_AMOUNTS:
             setting.wallet_preset_amounts = PRESET_WALLET_AMOUNTS
             updated_fields.append('wallet_preset_amounts')
+        if setting.support_username in ('Pomov2raySupport', '', None):
+            setting.support_username = DEFAULT_SUPPORT_USERNAME
+            updated_fields.append('support_username')
+        for tut_field in ('tutorial_android_url', 'tutorial_ios_url', 'tutorial_windows_url'):
+            if getattr(setting, tut_field, '') in ('https://t.me/Telegram', '', None):
+                setattr(setting, tut_field, DEFAULT_CHANNEL_URL)
+                updated_fields.append(tut_field)
         for stk_field, stk_file_id in DEFAULT_STICKERS.items():
             if not getattr(setting, stk_field, None):
                 setattr(setting, stk_field, stk_file_id)
@@ -146,11 +159,18 @@ class Command(BaseCommand):
             ]
         )
 
+        RequiredChannel.objects.filter(
+            chat_id__in=['@AxonNegar', '@pomov2ray']
+        ).update(
+            chat_id='@pomo_vpn',
+            title='📢 عضویت در کانال Pomo VPN',
+            invite_link=DEFAULT_CHANNEL_URL,
+        )
         if not RequiredChannel.objects.exists():
             RequiredChannel.objects.create(
-                chat_id='@pomov2ray',
-                title='📢 عضویت در کانال PomoV2ray',
-                invite_link='https://t.me/pomov2ray',
+                chat_id='@pomo_vpn',
+                title='📢 عضویت در کانال Pomo VPN',
+                invite_link=DEFAULT_CHANNEL_URL,
                 is_active=True,
                 sort_order=1,
             )

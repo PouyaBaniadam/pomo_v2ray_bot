@@ -634,11 +634,6 @@ def get_admin_panel_kb() -> InlineKeyboardMarkup:
             ],
             [
                 make_inline_btn(
-                    text="🗄 دریافت بکاپ فوری",
-                    callback_data="adm_manual_backup",
-                    style="success",
-                ),
-                make_inline_btn(
                     text="🔄 بروزرسانی آمار",
                     callback_data="adm_refresh_stats",
                     style="primary",

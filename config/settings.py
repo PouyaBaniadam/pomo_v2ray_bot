@@ -127,7 +127,7 @@ UNFOLD = {
                         "link": reverse_lazy("admin:core_subscriptionorder_changelist"),
                     },
                     {
-                        "title": "پلن‌های فروش",
+                        "title": "پلن‌های فروش (دایرکت و تانل)",
                         "icon": "tune",
                         "link": reverse_lazy("admin:core_plan_changelist"),
                     },
@@ -138,7 +138,7 @@ UNFOLD = {
                 "separator": True,
                 "items": [
                     {
-                        "title": "فاکتورها و رسیدها",
+                        "title": "فاکتورها و رسیدهای کارت‌به‌کارت",
                         "icon": "receipt_long",
                         "link": reverse_lazy("admin:core_transaction_changelist"),
                     },
@@ -159,7 +159,7 @@ UNFOLD = {
                         "link": reverse_lazy("admin:core_telegramuser_changelist"),
                     },
                     {
-                        "title": "پیام‌های همگانی",
+                        "title": "پیام‌های همگانی (Broadcast)",
                         "icon": "campaign",
                         "link": reverse_lazy("admin:core_broadcastmessage_changelist"),
                     },
@@ -196,6 +196,10 @@ BOT_TOKEN = os.getenv(
     'BOT_TOKEN',
     '',
 ).strip()
+BACKUP_BOT_TOKEN = os.getenv(
+    'BACKUP_BOT_TOKEN',
+    '',
+).strip()
 BOT_USERNAME = os.getenv(
     'BOT_USERNAME',
     'Pomov2rayBot',
@@ -206,6 +210,10 @@ ADMIN_TELEGRAM_ID = int(
         '0',
     ) or 0
 )
+ADMIN_TELEGRAM_USERNAME = os.getenv(
+    'ADMIN_TELEGRAM_USERNAME',
+    'Pomoadmin',
+).strip().lstrip('@')
 REDIS_URL = os.getenv(
     'REDIS_URL',
     '',

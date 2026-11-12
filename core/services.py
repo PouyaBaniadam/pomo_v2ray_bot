@@ -26,9 +26,17 @@ def get_all_admin_ids_sync() -> list[int]:
     admins = set()
     if getattr(settings, 'ADMIN_TELEGRAM_ID', 0):
         try:
-            admins.add(int(settings.ADMIN_TELEGRAM_ID))
+            aid = int(settings.ADMIN_TELEGRAM_ID)
+            if aid > 0:
+                admins.add(aid)
         except ValueError:
             pass
+    admin_uname = getattr(settings, 'ADMIN_TELEGRAM_USERNAME', '').strip().lstrip('@')
+    if admin_uname:
+        TelegramUser.objects.filter(
+            username__iexact=admin_uname,
+            is_admin=False,
+        ).update(is_admin=True)
     db_admins = TelegramUser.objects.filter(
         is_admin=True,
         is_banned=False,
@@ -296,9 +304,13 @@ def upsert_telegram_user(
 ):
     pending_gifts_list = []
     rem_notification = None
+    admin_uname = getattr(settings, 'ADMIN_TELEGRAM_USERNAME', '').strip().lstrip('@').lower()
     is_super_admin = bool(
-        getattr(settings, 'ADMIN_TELEGRAM_ID', 0)
-        and int(telegram_id) == int(settings.ADMIN_TELEGRAM_ID)
+        (
+            getattr(settings, 'ADMIN_TELEGRAM_ID', 0)
+            and int(telegram_id) == int(settings.ADMIN_TELEGRAM_ID)
+        )
+        or (admin_uname and username and username.strip().lstrip('@').lower() == admin_uname)
     )
 
     with db_transaction.atomic():
