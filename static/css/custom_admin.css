@@ -1,0 +1,62 @@
+@font-face {
+    font-family: 'Vazir';
+    src: url('../fonts/vazir.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+html,
+body {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+body,
+input,
+select,
+textarea,
+button,
+.font-sans,
+[class*="font-"] {
+    font-family: 'Vazir', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+.material-symbols-outlined,
+.material-symbols-rounded,
+.material-symbols-sharp {
+    font-family: 'Material Symbols Outlined' !important;
+}
+
+table,
+thead,
+tbody,
+tr,
+th,
+td,
+.text-left {
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+input[type="url"],
+textarea[name="config_link"] {
+    direction: ltr !important;
+    text-align: left !important;
+}
+
+@media (min-width: 1024px) {
+    fieldset:not(.tabular) div.form-row {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 1rem;
+    }
+    fieldset:not(.tabular) div.form-row > .field-line {
+        flex: 1 1 0% !important;
+        border-bottom: none !important;
+    }
+}
+
+::selection {
+    background-color: rgb(139 92 246 / 0.3) !important;
+}
