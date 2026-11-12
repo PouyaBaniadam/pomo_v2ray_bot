@@ -126,7 +126,7 @@ def approve_transaction_sync(
     with db_transaction.atomic():
         try:
             tx = (
-                Transaction.objects.select_for_update()
+                Transaction.objects.select_for_update(of=('self',))
                 .select_related(
                     'user',
                     'target_plan',
