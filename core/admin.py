@@ -6,7 +6,12 @@ from django.contrib import (
     admin,
     messages,
 )
+from django.http import HttpResponse
 from django.shortcuts import redirect
+from django.template import (
+    RequestContext,
+    Template,
+)
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.html import format_html
@@ -30,6 +35,81 @@ from core.services import (
     get_all_active_user_ids_sync,
 )
 from core.pasarguard import create_user_from_template
+
+
+CONFIRM_RESET_TEMPLATE = """
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div style="max-width: 560px; margin: 40px auto; padding: 28px; border-radius: 14px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.06);">
+    <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 14px; color: #ef4444;">
+        ⚠️ تاییدیه فعال‌سازی مجدد تست رایگان برای همه کاربران
+    </h2>
+    <p style="line-height: 1.9; margin-bottom: 12px;">
+        آیا از انجام این عملیات اطمینان دارید؟ با تایید این مرحله:
+    </p>
+    <ul style="line-height: 1.9; margin-bottom: 20px; padding-right: 20px; list-style-type: disc;">
+        <li>وضعیت دریافت تست رایگان برای <strong>{{ affected_count }} کاربر</strong> (از مجموع {{ total_count }} کاربر) ریست می‌شود.</li>
+        <li>دکمه «🎁 دریافت تست رایگان» مجدداً در منوی اصلی ربات برای همه فعال خواهد شد.</li>
+        <li>تاریخچه تعداد دفعات استفاده قبلی کاربران همچنان محفوظ می‌ماند.</li>
+    </ul>
+    <form method="post" style="display: flex; gap: 12px; align-items: center;">
+        {% csrf_token %}
+        <input type="hidden" name="confirm" value="yes" />
+        <button type="submit" style="background-color: #16a34a; color: #ffffff; padding: 10px 20px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer;">
+            ✅ بله، مطمئنم و برای همه فعال شود
+        </button>
+        <a href="{{ cancel_url }}" style="background-color: #4b5563; color: #ffffff; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none;">
+            🔙 انصراف و بازگشت
+        </a>
+    </form>
+</div>
+{% endblock %}
+"""
+
+
+def render_free_test_reset_confirmation(
+    model_admin,
+    request,
+    cancel_url: str,
+) -> HttpResponse:
+    affected_count = TelegramUser.objects.filter(
+        used_free_test=True,
+    ).count()
+    total_count = TelegramUser.objects.count()
+    context = {
+        **model_admin.admin_site.each_context(request),
+        "title": "تاییدیه ریست تست رایگان",
+        "affected_count": affected_count,
+        "total_count": total_count,
+        "cancel_url": cancel_url,
+    }
+    html = Template(CONFIRM_RESET_TEMPLATE).render(
+        RequestContext(
+            request,
+            context,
+        )
+    )
+    return HttpResponse(html)
+
+
+def execute_global_free_test_reset(
+    model_admin,
+    request,
+):
+    updated_count = TelegramUser.objects.filter(
+        used_free_test=True,
+    ).update(
+        used_free_test=False,
+    )
+    BotSetting.objects.filter(id=1).update(
+        free_test_enabled=True,
+    )
+    model_admin.message_user(
+        request,
+        f"✅ تست رایگان برای همه کاربران فعال شد ({updated_count} کاربر ریست شدند).",
+        level=messages.SUCCESS,
+    )
 
 
 @admin.register(TelegramUser)
@@ -88,20 +168,18 @@ class TelegramUserAdmin(ModelAdmin):
             self,
             request,
     ):
-        updated_count = TelegramUser.objects.filter(
-            used_free_test=True,
-        ).update(
-            used_free_test=False,
-        )
-        BotSetting.objects.filter(id=1).update(
-            free_test_enabled=True,
-        )
-        self.message_user(
+        cancel_url = str(reverse_lazy("admin:core_telegramuser_changelist"))
+        if request.method == "POST" and request.POST.get("confirm") == "yes":
+            execute_global_free_test_reset(
+                self,
+                request,
+            )
+            return redirect(cancel_url)
+        return render_free_test_reset_confirmation(
+            self,
             request,
-            f"✅ تست رایگان برای همه کاربران فعال شد ({updated_count} کاربر ریست شدند و تاریخچه تعداد استفاده محفوظ ماند).",
-            level=messages.SUCCESS,
+            cancel_url,
         )
-        return redirect(reverse_lazy("admin:core_telegramuser_changelist"))
 
     @admin.action(description="🎁 فعال‌سازی مجدد تست رایگان برای کاربران انتخاب شده")
     def reset_selected_users_free_test(
@@ -615,24 +693,6 @@ class BotSettingAdmin(ModelAdmin):
         'reset_all_free_tests_detail',
     ]
 
-    def _perform_global_free_test_reset(
-            self,
-            request,
-    ):
-        updated_count = TelegramUser.objects.filter(
-            used_free_test=True,
-        ).update(
-            used_free_test=False,
-        )
-        BotSetting.objects.filter(id=1).update(
-            free_test_enabled=True,
-        )
-        self.message_user(
-            request,
-            f"✅ تست رایگان برای همه کاربران فعال شد ({updated_count} کاربر ریست شدند و تاریخچه تعداد استفاده محفوظ ماند).",
-            level=messages.SUCCESS,
-        )
-
     @action(
         description="🎁 ریست و فعال‌سازی تست برای همه",
         url_path="reset-all-free-tests-settings",
@@ -641,8 +701,18 @@ class BotSettingAdmin(ModelAdmin):
             self,
             request,
     ):
-        self._perform_global_free_test_reset(request)
-        return redirect(reverse_lazy("admin:core_botsetting_changelist"))
+        cancel_url = str(reverse_lazy("admin:core_botsetting_changelist"))
+        if request.method == "POST" and request.POST.get("confirm") == "yes":
+            execute_global_free_test_reset(
+                self,
+                request,
+            )
+            return redirect(cancel_url)
+        return render_free_test_reset_confirmation(
+            self,
+            request,
+            cancel_url,
+        )
 
     @action(
         description="🎁 ریست و فعال‌سازی تست برای همه",
@@ -653,12 +723,22 @@ class BotSettingAdmin(ModelAdmin):
             request,
             object_id,
     ):
-        self._perform_global_free_test_reset(request)
-        return redirect(
+        cancel_url = str(
             reverse_lazy(
                 "admin:core_botsetting_change",
                 args=[object_id],
             )
+        )
+        if request.method == "POST" and request.POST.get("confirm") == "yes":
+            execute_global_free_test_reset(
+                self,
+                request,
+            )
+            return redirect(cancel_url)
+        return render_free_test_reset_confirmation(
+            self,
+            request,
+            cancel_url,
         )
 
     def has_add_permission(
