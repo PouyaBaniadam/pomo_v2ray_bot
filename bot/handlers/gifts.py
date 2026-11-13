@@ -67,10 +67,6 @@ async def handle_free_test_request(
     order_date = format_jalali(order.created_at)
 
     if delivery_type == "instant":
-        exp_str = format_jalali(
-            order.expires_at,
-            include_time=False,
-        )
         await message.answer(
             f"🎁 <b>تست رایگان ({test_title}) شما به صورت خودکار فعال شد!</b>",
             reply_markup=get_main_menu_keyboard(
@@ -80,11 +76,11 @@ async def handle_free_test_request(
             parse_mode="HTML",
         )
         await message.answer(
-            f"🎉 <b>اطلاعات سرویس تست رایگان شما:</b>\n\n"
-            f"🏷 نام سرویس: <code>{order.custom_name}</code>\n"
+            f"🎉 <b>اطلاعات سرویس تست رایگان شما (دایرکت + تانل):</b>\n\n"
+            f"🏷 نام سرویس: <code>{order.panel_username or order.custom_name}</code>\n"
             f"📦 مشخصات: {test_title}\n"
             f"📅 تاریخ دریافت: <b>{order_date}</b>\n"
-            f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n\n"
+            f"⏳ زمان اعتبار: <b>{bot_settings.free_test_days} روز (شروع از اولین اتصال)</b>\n\n"
             f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
             f"<code>{order.config_link}</code>\n\n"
             f"💡 از دکمه‌های زیر می‌توانید لینک را با یک کلیک کپی کنید یا QR Code آن را دریافت نمایید:",
@@ -101,7 +97,7 @@ async def handle_free_test_request(
                     f"✅ <b>تحویل خودکار تست رایگان (#{order.id})</b>\n\n"
                     f"📅 تاریخ: <b>{order_date}</b>\n"
                     f"👤 کاربر: {message.from_user.full_name} (<code>{message.from_user.id}</code>)\n"
-                    f"🏷 نام سرویس: <code>{order.custom_name}</code>",
+                    f"🏷 نام سرویس در پنل: <code>{order.panel_username or order.custom_name}</code>",
                     parse_mode="HTML",
                 )
             except Exception:
@@ -173,6 +169,8 @@ async def show_referral_gift_menu_by_user(
         bot_settings.referral_required_count,
     )
     gift_title = bot_settings.referral_gift_title
+    m10_title = bot_settings.referral_milestone_10_title
+    m20_title = bot_settings.referral_milestone_20_title
 
     total_refs = profile['valid_referrals_count']
     gifts_received = profile['referral_gifts_received']
@@ -180,12 +178,15 @@ async def show_referral_gift_menu_by_user(
     remaining_for_next = req_count - current_cycle_progress
 
     text = (
-        f"🎉 <b>اشتراک رایگان با دعوت دوستان</b>\n\n"
-        f"👥 به ازای هر {req_count} دعوت معتبر، ۱ اشتراک هدیه ({gift_title}) می‌گیری!\n"
-        f"🔁 این هدیه تکرارپذیره (فقط یک‌بار نیست).\n\n"
-        f"📊 دعوت‌های معتبر تا الان: <b>{current_cycle_progress}/{req_count}</b>\n"
-        f"🎁 هدیه‌های گرفته‌شده: <b>{gifts_received}</b>\n"
-        f"⏳ مانده تا هدیه بعدی: <b>{remaining_for_next} دعوت</b>\n\n"
+        f"🎉 <b>اشتراک رایگان با دعوت دوستان (بدون محدودیت کاربر)</b>\n\n"
+        f"🎁 <b>جدول جوایز دعوت شما:</b>\n"
+        f"🔹 به ازای <b>هر {req_count} دعوت معتبر</b> (۳، ۶، ۹، ۱۲، ۱۵، ۱۸ و...): <b>{gift_title}</b>\n"
+        f"🔥 جایزه ویژه <b>دهمین دعوت (۱۰ نفر)</b>: <b>{m10_title}</b> (سوای جوایز قبلی!)\n"
+        f"💎 جایزه ویژه <b>بیستمین دعوت (۲۰ نفر)</b>: <b>{m20_title}</b> (سوای جوایز قبلی!)\n"
+        f"⏳ <i>زمان اعتبار تمام هدایا از لحظه اولین اتصال (On Hold) شروع می‌شود!</i>\n\n"
+        f"📊 کل دعوت‌های معتبر شما: <b>{total_refs} نفر</b>\n"
+        f"🔄 پیشرفت چرخه ۳تایی فعلی: <b>{current_cycle_progress}/{req_count}</b> (مانده: {remaining_for_next} دعوت)\n"
+        f"🎁 کل هدیه‌های دریافت‌شده: <b>{gifts_received} اشتراک</b>\n\n"
         f"🔗 لینک اختصاصی دعوت تو:\n"
         f"<code>{invite_link}</code>"
     )

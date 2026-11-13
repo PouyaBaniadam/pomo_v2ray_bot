@@ -131,9 +131,9 @@ class Plan(models.Model):
         verbose_name="مدت اعتبار (روز)",
     )
     max_users = models.PositiveIntegerField(
-        default=1,
+        default=0,
         verbose_name="تعداد کاربر مجاز",
-        help_text="برای پلن‌های حجمی 1 بگذارید و برای نامحدودها تعداد کاربر (مثلاً 2 یا 3) را وارد کنید.",
+        help_text="برای پلن‌های حجمی بدون محدودیت دستگاه عدد 0 بگذارید و برای نامحدودها تعداد کاربر (مثلاً 2 یا 3) را وارد کنید.",
     )
     price = models.PositiveBigIntegerField(
         verbose_name="قیمت (تومان)",
@@ -149,7 +149,7 @@ class Plan(models.Model):
 
     class Meta:
         verbose_name = "پلن فروش"
-        verbose_name_plural = "پلن‌های فروش (دایرکت و تانل)"
+        verbose_name_plural = "پلن‌های فروش"
         ordering = [
             'plan_type',
             'sort_order',
@@ -231,7 +231,7 @@ class Transaction(models.Model):
 
     class Meta:
         verbose_name = "فاکتور و رسید پرداخت"
-        verbose_name_plural = "فاکتورها و رسیدهای کارت به کارت"
+        verbose_name_plural = "فاکتورها و رسیدها"
         ordering = ['-created_at']
 
     def __str__(self):
@@ -395,12 +395,12 @@ class RequiredChannel(models.Model):
     chat_id = models.CharField(
         max_length=100,
         unique=True,
-        verbose_name="یوزرنیم یا آیدی کانال (مثلاً @AxonNegar)",
-        help_text="یوزرنیم کانال با @ (مثل @AxonNegar) یا آیدی عددی کانال خصوصی (مثل -100123456789). حتماً ربات را در کانال ادمین کنید.",
+        verbose_name="یوزرنیم یا آیدی کانال (مثلاً @pomov2ray)",
+        help_text="یوزرنیم کانال با @ (مثل @pomov2ray) یا آیدی عددی کانال خصوصی (مثل -100123456789). حتماً ربات را در کانال ادمین کنید.",
     )
     invite_link = models.URLField(
-        default="https://t.me/AxonNegar",
-        verbose_name="لینک عضویت کانال (مثلاً https://t.me/AxonNegar)",
+        default="https://t.me/pomov2ray",
+        verbose_name="لینک عضویت کانال (مثلاً https://t.me/pomov2ray)",
     )
     is_active = models.BooleanField(
         default=True,
@@ -446,9 +446,9 @@ class BotSetting(models.Model):
         max_length=255,
         blank=True,
         null=True,
-        default="",
+        default="49000,98000,148000,398000,89000,178000,268000,439000",
         verbose_name="مبالغ پیشنهادی شارژ کیف پول (اختیاری)",
-        help_text="اگر خالی باشد، به صورت خودکار از قیمت پلن‌های فعال ساخته می‌شود. برای تنظیم دستی، مبالغ را با کاما جدا کنید (مثلاً: 100000,200000,500000).",
+        help_text="اگر خالی باشد، به صورت خودکار از قیمت پلن‌های فعال ساخته می‌شود. برای تنظیم دستی، مبالغ را با کاما جدا کنید.",
     )
     max_receipt_size_mb = models.PositiveIntegerField(
         default=3,
@@ -481,6 +481,27 @@ class BotSetting(models.Model):
         verbose_name="آیدی پشتیبان (بدون @)",
     )
 
+    backup_enabled = models.BooleanField(
+        default=True,
+        verbose_name="فعال بودن بکاپ خودکار و ارسال به ادمین‌ها؟",
+    )
+    backup_interval_minutes = models.PositiveIntegerField(
+        default=5,
+        verbose_name="فاصله زمانی بکاپ خودکار (دقیقه)",
+        help_text="مثلاً 5 برای هر ۵ دقیقه، 60 برای هر ۱ ساعت، 720 برای هر ۱۲ ساعت، 1440 برای هر ۲۴ ساعت.",
+    )
+    last_backup_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="زمان آخرین بکاپ",
+    )
+    last_backup_messages = models.JSONField(
+        default=dict,
+        blank=True,
+        editable=False,
+    )
+
     pasarguard_base_url = models.URLField(
         max_length=255,
         blank=True,
@@ -494,7 +515,7 @@ class BotSetting(models.Model):
         blank=True,
         null=True,
         verbose_name="کلید ارتباطی پاسارگارد (API Key)",
-        help_text="کلید ساخته شده در بخش API Keys پنل پاسارگارد (شروع با pg_key_). اگر خالی باشد از فایل .env خوانده می‌شود.",
+        help_text="کلید ساخته شده در بخش API Keys پنل پاسارگارد.",
     )
     pasarguard_verify_ssl = models.BooleanField(
         default=False,
@@ -525,36 +546,67 @@ class BotSetting(models.Model):
         default=8,
         null=True,
         blank=True,
-        verbose_name="شناسه قالب هدیه دعوت در پاسارگارد (Template ID)",
+        verbose_name="شناسه قالب هدیه دعوت ۳ نفر در پاسارگارد (Template ID)",
     )
     referral_required_count = models.PositiveIntegerField(
         default=3,
-        verbose_name="تعداد دعوت لازم برای هر هدیه",
+        verbose_name="تعداد دعوت لازم برای هر هدیه پایه",
     )
     referral_gift_title = models.CharField(
         max_length=100,
         default="۱۰ گیگابایت - ۱ روزه",
-        verbose_name="عنوان نمایشی هدیه دعوت (مثلاً: ۱۰ گیگابایت - ۱ روزه)",
+        verbose_name="عنوان نمایشی هدیه پایه (هر ۳ دعوت)",
     )
     referral_gift_days = models.PositiveIntegerField(
         default=1,
-        verbose_name="مدت اعتبار هدیه دعوت (روز)",
+        verbose_name="مدت اعتبار هدیه پایه (روز)",
     )
+
+    referral_milestone_10_template_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="شناسه قالب هدیه ویژه نفر ۱۰ام در پاسارگارد (Template ID)",
+    )
+    referral_milestone_10_title = models.CharField(
+        max_length=100,
+        default="۳۰ گیگابایت - ۱ هفته‌ای",
+        verbose_name="عنوان نمایشی هدیه ویژه نفر ۱۰ام",
+    )
+    referral_milestone_10_days = models.PositiveIntegerField(
+        default=7,
+        verbose_name="مدت اعتبار هدیه ویژه نفر ۱۰ام (روز)",
+    )
+
+    referral_milestone_20_template_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="شناسه قالب هدیه ویژه نفر ۲۰ام در پاسارگارد (Template ID)",
+    )
+    referral_milestone_20_title = models.CharField(
+        max_length=100,
+        default="۱۰۰ گیگابایت - ۱ ماهه",
+        verbose_name="عنوان نمایشی هدیه ویژه نفر ۲۰ام",
+    )
+    referral_milestone_20_days = models.PositiveIntegerField(
+        default=30,
+        verbose_name="مدت اعتبار هدیه ویژه نفر ۲۰ام (روز)",
+    )
+
     referral_share_text = models.CharField(
         max_length=255,
         default="تجربه یک اتصال باکیفیت و بدون محدودیت!",
         verbose_name="متن اشتراک‌گذاری لینک دعوت",
     )
 
-    tutorial_android_url = models.URLField(
+    tutorial_android_url = models.CharField(
         default="https://t.me/Telegram",
         verbose_name="لینک آموزش اندروید",
     )
-    tutorial_ios_url = models.URLField(
+    tutorial_ios_url = models.CharField(
         default="https://t.me/Telegram",
         verbose_name="لینک آموزش آیفون (iOS)",
     )
-    tutorial_windows_url = models.URLField(
+    tutorial_windows_url = models.CharField(
         default="https://t.me/Telegram",
         verbose_name="لینک آموزش ویندوز",
     )
@@ -564,7 +616,7 @@ class BotSetting(models.Model):
             "🛒 <b>خرید سرویس اشتراک V2Ray</b>\n\n"
             "لطفاً نوع سرور و اشتراک مد نظر خود را انتخاب کنید:\n\n"
             "⚡ <b>حجمی دایرکت (Direct):</b> شامل بسته‌های حجمی و نامحدود با اتصال مستقیم و سرعت بالا.\n"
-            "🛡 <b>حجمی تانل (Tunnel):</b> سرورهای تانل‌شده با پایداری حداکثری در تمامی اپراتورها."
+            "🛡 <b>حجمی تانل (Tunnel):</b> سرورهای تانل‌شده (شامل تانل + دایرکت) با پایداری حداکثری در تمامی اپراتورها."
         ),
         verbose_name="متن راهنمای منوی خرید سرویس",
     )
@@ -582,16 +634,18 @@ class BotSetting(models.Model):
         default=(
             "⚡ <b>فیلترشکن پرسرعت دایرکت (Direct)</b>\n"
             "• پرسرعت و متصل در تمامی اپراتورها\n"
-            "• شامل بسته‌های حجمی و نامحدود\n"
+            "• شامل بسته‌های حجمی (بدون محدودیت کاربر) و نامحدود\n"
+            "• شروع زمان اعتبار از اولین اتصال (On Hold)\n"
             "• پشتیبانی آنلاین ۲۴ ساعته + گارانتی"
         ),
         verbose_name="متن بالای پلن‌های دایرکت (Direct)",
     )
     unlimited_plan_header = models.TextField(
         default=(
-            "🛡 <b>فیلترشکن تانل شده (Tunnel)</b>\n"
-            "• پایداری حداکثری حتی در شرایط اختلال شدید\n"
-            "• سرعت و پینگ عالی بدون محدودیت کاربر\n"
+            "🛡 <b>فیلترشکن تانل شده (Tunnel + Direct)</b>\n"
+            "• پایداری حداکثری حتی در شرایط اختلال شدید (شامل سرورهای تانل و دایرکت)\n"
+            "• سرعت و پینگ عالی بدون محدودیت تعداد کاربر\n"
+            "• شروع زمان اعتبار از اولین اتصال (On Hold)\n"
             "• پشتیبانی آنلاین ۲۴ ساعته + گارانتی"
         ),
         verbose_name="متن بالای پلن‌های تانل (Tunnel)",

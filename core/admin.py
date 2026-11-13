@@ -2,6 +2,7 @@ import threading
 import time
 from datetime import timedelta
 
+from django import forms
 from django.contrib import (
     admin,
     messages,
@@ -36,7 +37,7 @@ from core.services import (
     send_telegram_message_sync,
     build_service_actions_reply_markup_sync,
     approve_transaction_sync,
-    get_all_active_user_ids_sync,
+    get_all_active_user_ids_sync, get_all_admin_ids_sync, sync_user_bot_commands_sync,
 )
 from core.pasarguard import (
     create_user_from_template,
@@ -45,6 +46,57 @@ from core.pasarguard import (
     resolve_default_group_ids_for_plan_type,
     create_or_update_user_template,
 )
+
+
+class BotSettingAdminForm(forms.ModelForm):
+    class Meta:
+        model = BotSetting
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        compact_textareas = (
+            "welcome_text",
+            "buy_menu_text",
+            "volume_plan_header",
+            "unlimited_plan_header",
+        )
+        for field_name in compact_textareas:
+            if field_name in self.fields:
+                self.fields[field_name].widget.attrs.update({"rows": 3})
+
+        ltr_fields = (
+            "card_number",
+            "wallet_preset_amounts",
+            "pasarguard_base_url",
+            "pasarguard_api_key",
+            "support_username",
+            "tutorial_android_url",
+            "tutorial_ios_url",
+            "tutorial_windows_url",
+            "sticker_welcome",
+            "sticker_buy",
+            "sticker_wallet",
+            "sticker_account",
+            "sticker_empty",
+        )
+        for field_name in ltr_fields:
+            if field_name in self.fields:
+                self.fields[field_name].widget.attrs.update(
+                    {"style": "direction: ltr; text-align: left;"}
+                )
+
+
+class SupportTicketAdminForm(forms.ModelForm):
+    class Meta:
+        model = SupportTicket
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ("user_message", "admin_reply"):
+            if field_name in self.fields:
+                self.fields[field_name].widget.attrs.update({"rows": 4})
 
 
 def render_free_test_reset_confirmation(
@@ -92,29 +144,29 @@ def execute_global_free_test_reset(
 @admin.register(AccountingReport)
 class AccountingReportAdmin(ModelAdmin):
     def has_add_permission(
-            self,
-            request,
+        self,
+        request,
     ):
         return False
 
     def has_change_permission(
-            self,
-            request,
-            obj=None,
+        self,
+        request,
+        obj=None,
     ):
         return False
 
     def has_delete_permission(
-            self,
-            request,
-            obj=None,
+        self,
+        request,
+        obj=None,
     ):
         return False
 
     def changelist_view(
-            self,
-            request,
-            extra_context=None,
+        self,
+        request,
+        extra_context=None,
     ):
         period = request.GET.get("period", "30d")
         date_from = request.GET.get("date_from")
@@ -189,9 +241,26 @@ class TelegramUserAdmin(ModelAdmin):
         'jalali_created_at',
         'jalali_updated_at',
     )
-    exclude = (
-        'created_at',
-        'updated_at',
+    fieldsets = (
+        (
+            "اطلاعات هویتی و دسترسی",
+            {
+                "fields": (
+                    ("telegram_id", "username", "full_name"),
+                    ("wallet_balance", "is_admin", "is_banned"),
+                ),
+            },
+        ),
+        (
+            "تست رایگان و زیرمجموعه‌گیری",
+            {
+                "fields": (
+                    ("used_free_test", "free_test_count"),
+                    ("referred_by", "valid_referrals_count", "referral_gifts_received"),
+                    ("jalali_created_at", "jalali_updated_at"),
+                ),
+            },
+        ),
     )
     actions = [
         'reset_selected_users_free_test',
@@ -200,10 +269,28 @@ class TelegramUserAdmin(ModelAdmin):
         'reset_all_users_free_test_action',
     ]
 
+    def get_search_results(
+        self,
+        request,
+        queryset,
+        search_term,
+    ):
+        clean_term = (search_term or "").strip().lstrip("@")
+        queryset, use_distinct = super().get_search_results(
+            request,
+            queryset,
+            clean_term,
+        )
+        if clean_term.isdigit():
+            queryset |= self.model.objects.filter(
+                telegram_id__icontains=clean_term,
+            )
+        return queryset, use_distinct
+
     @admin.display(description="کارنامه مالی")
     def user_financial_report_link(
-            self,
-            obj,
+        self,
+        obj,
     ):
         url = f"{reverse_lazy('admin:core_accountingreport_changelist')}?user_id={obj.telegram_id}"
         return format_html(
@@ -218,8 +305,8 @@ class TelegramUserAdmin(ModelAdmin):
         url_path="reset-all-free-tests",
     )
     def reset_all_users_free_test_action(
-            self,
-            request,
+        self,
+        request,
     ):
         cancel_url = str(reverse_lazy("admin:core_telegramuser_changelist"))
         if request.method == "POST" and request.POST.get("confirm") == "yes":
@@ -236,9 +323,9 @@ class TelegramUserAdmin(ModelAdmin):
 
     @admin.action(description="فعال‌سازی مجدد تست رایگان برای کاربران انتخاب شده")
     def reset_selected_users_free_test(
-            self,
-            request,
-            queryset,
+        self,
+        request,
+        queryset,
     ):
         updated_count = queryset.update(
             used_free_test=False,
@@ -251,8 +338,8 @@ class TelegramUserAdmin(ModelAdmin):
 
     @admin.display(description="موجودی کیف پول")
     def formatted_balance(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return f"{obj.wallet_balance:,} تومان"
 
@@ -261,8 +348,8 @@ class TelegramUserAdmin(ModelAdmin):
         ordering="created_at",
     )
     def jalali_created_at(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return format_jalali(obj.created_at)
 
@@ -271,10 +358,29 @@ class TelegramUserAdmin(ModelAdmin):
         ordering="updated_at",
     )
     def jalali_updated_at(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return format_jalali(obj.updated_at)
+
+    def save_model(
+            self,
+            request,
+            obj,
+            form,
+            change,
+    ):
+        super().save_model(
+            request,
+            obj,
+            form,
+            change,
+        )
+        is_active_admin = obj.telegram_id in get_all_admin_ids_sync()
+        sync_user_bot_commands_sync(
+            obj.telegram_id,
+            is_active_admin,
+        )
 
 
 @admin.register(Plan)
@@ -308,24 +414,24 @@ class PlanAdmin(ModelAdmin):
 
     @admin.display(description="قیمت")
     def formatted_price(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return f"{obj.price:,} تومان"
 
-    def add_view(
-            self,
-            request,
-            form_url="",
-            extra_context=None,
+    def _render_or_save_plan_form(
+        self,
+        request,
+        plan_obj: Plan | None = None,
     ):
         changelist_url = str(reverse_lazy("admin:core_plan_changelist"))
+        is_edit = plan_obj is not None
 
         if request.method == "POST":
             plan_type = request.POST.get("plan_type", "direct")
             title = (request.POST.get("title") or "").strip()
             volume_gb = max(0, int(request.POST.get("volume_gb") or 0))
-            max_users = max(1, int(request.POST.get("max_users") or 1))
+            max_users = max(0, int(request.POST.get("max_users") or 0))
             price = max(0, int(request.POST.get("price") or 0))
             sort_order = max(1, int(request.POST.get("sort_order") or 1))
             is_active = bool(request.POST.get("is_active"))
@@ -341,7 +447,7 @@ class PlanAdmin(ModelAdmin):
             duration_days = max(1, round(expire_seconds / 86400))
 
             template_mode = request.POST.get("template_mode", "create_new")
-            resolved_tpl_id = None
+            resolved_tpl_id = plan_obj.pasarguard_template_id if is_edit else None
 
             if template_mode == "use_existing":
                 raw_tpl_id = request.POST.get("existing_template_id")
@@ -357,11 +463,11 @@ class PlanAdmin(ModelAdmin):
                 if not group_ids:
                     group_ids = resolve_default_group_ids_for_plan_type(plan_type)
 
-                status = request.POST.get("status", "active")
+                status = request.POST.get("status", "on_hold")
                 on_hold_timeout = int(request.POST.get("on_hold_timeout") or 86400)
                 method = request.POST.get("method", "chacha20-ietf-poly1305")
                 raw_hwid = (request.POST.get("hwid_limit") or "").strip()
-                hwid_limit = int(raw_hwid) if raw_hwid != "" else None
+                hwid_limit = int(raw_hwid) if raw_hwid != "" else 0
                 username_prefix = request.POST.get("username_prefix")
                 username_suffix = request.POST.get("username_suffix")
                 reset_strategy = request.POST.get("data_limit_reset_strategy", "no_reset")
@@ -380,36 +486,56 @@ class PlanAdmin(ModelAdmin):
                     username_prefix=username_prefix,
                     username_suffix=username_suffix,
                     method=method,
+                    template_id=plan_obj.pasarguard_template_id if is_edit else None,
                 )
                 if not ok:
                     self.message_user(
                         request,
-                        f"خطا در ساخت قالب پاسارگارد: {err}",
+                        f"خطا در ثبت/بروزرسانی قالب پاسارگارد: {err}",
                         level=messages.ERROR,
                     )
                     return redirect(request.path)
                 resolved_tpl_id = created_tpl_id
 
-            plan = Plan.objects.create(
-                plan_type=plan_type,
-                title=title,
-                pasarguard_template_id=resolved_tpl_id,
-                volume_gb=volume_gb,
-                duration_days=duration_days,
-                max_users=max_users,
-                price=price,
-                is_active=is_active,
-                sort_order=sort_order,
-            )
-            self.message_user(
-                request,
-                f"پلن «{plan.title}» با موفقیت ساخته شد (Template ID: #{resolved_tpl_id}).",
-                level=messages.SUCCESS,
-            )
+            if is_edit:
+                plan_obj.plan_type = plan_type
+                plan_obj.title = title
+                plan_obj.pasarguard_template_id = resolved_tpl_id
+                plan_obj.volume_gb = volume_gb
+                plan_obj.duration_days = duration_days
+                plan_obj.max_users = max_users
+                plan_obj.price = price
+                plan_obj.is_active = is_active
+                plan_obj.sort_order = sort_order
+                plan_obj.save()
+                self.message_user(
+                    request,
+                    f"پلن «{plan_obj.title}» و قالب پاسارگارد (#{resolved_tpl_id}) با موفقیت بروزرسانی شد.",
+                    level=messages.SUCCESS,
+                )
+            else:
+                plan = Plan.objects.create(
+                    plan_type=plan_type,
+                    title=title,
+                    pasarguard_template_id=resolved_tpl_id,
+                    volume_gb=volume_gb,
+                    duration_days=duration_days,
+                    max_users=max_users,
+                    price=price,
+                    is_active=is_active,
+                    sort_order=sort_order,
+                )
+                self.message_user(
+                    request,
+                    f"پلن «{plan.title}» با موفقیت ساخته شد (Template ID: #{resolved_tpl_id}).",
+                    level=messages.SUCCESS,
+                )
             return redirect(changelist_url)
 
         raw_templates = fetch_pasarguard_templates_list()
         formatted_templates = []
+        current_tpl = None
+
         for t in raw_templates:
             d_bytes = int(t.get("data_limit") or 0)
             exp_sec = int(t.get("expire_duration") or 0)
@@ -421,6 +547,20 @@ class PlanAdmin(ModelAdmin):
                     "expire_days": round(exp_sec / 86400, 1) if exp_sec > 0 else 0,
                 }
             )
+            if is_edit and plan_obj.pasarguard_template_id and int(t["id"]) == int(plan_obj.pasarguard_template_id):
+                extra = t.get("extra_settings") or {}
+                current_tpl = {
+                    "id": int(t["id"]),
+                    "name": t.get("name") or "",
+                    "status": t.get("status") or "on_hold",
+                    "group_ids": [int(g) for g in (t.get("group_ids") or []) if str(g).isdigit()],
+                    "hwid_limit": 0 if t.get("hwid_limit") is None else t.get("hwid_limit"),
+                    "username_prefix": t.get("username_prefix") or "",
+                    "username_suffix": t.get("username_suffix") or "",
+                    "reset_usages": bool(t.get("reset_usages")),
+                    "data_limit_reset_strategy": t.get("data_limit_reset_strategy") or "no_reset",
+                    "method": extra.get("method") or "chacha20-ietf-poly1305",
+                }
 
         direct_max = (
             Plan.objects.filter(plan_type="direct").aggregate(m=Max("sort_order"))["m"] or 0
@@ -431,12 +571,20 @@ class PlanAdmin(ModelAdmin):
 
         context = {
             **self.admin_site.each_context(request),
-            "title": "افزودن پلن فروش",
+            "title": f"ویرایش پلن: {plan_obj.title}" if is_edit else "افزودن پلن فروش",
+            "is_edit": is_edit,
+            "plan": plan_obj,
+            "current_tpl": current_tpl,
             "templates_list": formatted_templates,
             "groups_list": fetch_pasarguard_groups(),
             "next_direct_order": direct_max + 1,
             "next_tunnel_order": tunnel_max + 1,
             "cancel_url": changelist_url,
+            "delete_url": (
+                str(reverse_lazy("admin:core_plan_delete", args=[plan_obj.pk]))
+                if is_edit
+                else None
+            ),
         }
         return render(
             request,
@@ -444,13 +592,39 @@ class PlanAdmin(ModelAdmin):
             context,
         )
 
+    def add_view(
+        self,
+        request,
+        form_url="",
+        extra_context=None,
+    ):
+        return self._render_or_save_plan_form(
+            request,
+            plan_obj=None,
+        )
+
+    def change_view(
+        self,
+        request,
+        object_id,
+        form_url="",
+        extra_context=None,
+    ):
+        plan_obj = Plan.objects.filter(pk=object_id).first()
+        if not plan_obj:
+            return redirect(reverse_lazy("admin:core_plan_changelist"))
+        return self._render_or_save_plan_form(
+            request,
+            plan_obj=plan_obj,
+        )
+
     @action(
         description="همگام‌سازی پلن‌ها با پاسارگارد",
         url_path="sync-plans-pasarguard",
     )
     def sync_all_plans_to_pasarguard(
-            self,
-            request,
+        self,
+        request,
     ):
         synced = 0
         for plan in Plan.objects.all():
@@ -461,12 +635,13 @@ class PlanAdmin(ModelAdmin):
                 else f"{type_prefix} Unlim {plan.max_users}U"
             )
             group_ids = resolve_default_group_ids_for_plan_type(plan.plan_type)
-            hwid = plan.max_users if (plan.volume_gb == 0 or plan.max_users > 1) else None
+            hwid = plan.max_users if (plan.volume_gb == 0 and plan.max_users > 0) else 0
             ok, tpl_id, _ = create_or_update_user_template(
                 name=tpl_name,
                 group_ids=group_ids,
                 data_limit_bytes=plan.volume_gb * 1073741824,
                 expire_duration_seconds=plan.duration_days * 86400,
+                status='on_hold',
                 hwid_limit=hwid,
                 template_id=plan.pasarguard_template_id,
             )
@@ -498,10 +673,12 @@ class TransactionAdmin(ModelAdmin):
     )
     list_filter = (
         'status',
+        'target_plan',
         'created_at',
     )
     search_fields = (
         'invoice_number',
+        'target_custom_name',
         'user__telegram_id',
         'user__username',
         'user__full_name',
@@ -515,7 +692,27 @@ class TransactionAdmin(ModelAdmin):
         'receipt_preview_large',
         'jalali_created_at',
     )
-    exclude = ('created_at',)
+    fieldsets = (
+        (
+            "مشخصات فاکتور و کاربر",
+            {
+                "fields": (
+                    ("invoice_number", "status", "jalali_created_at"),
+                    ("user", "amount"),
+                    ("target_plan", "target_custom_name"),
+                ),
+            },
+        ),
+        (
+            "رسید پرداخت و بررسی ادمین",
+            {
+                "fields": (
+                    ("receipt_image", "receipt_preview_large"),
+                    ("receipt_text", "admin_note"),
+                ),
+            },
+        ),
+    )
     actions = [
         'approve_transactions',
         'reject_transactions',
@@ -524,20 +721,33 @@ class TransactionAdmin(ModelAdmin):
         'open_accounting_dashboard_action',
     ]
 
+    def get_search_results(
+        self,
+        request,
+        queryset,
+        search_term,
+    ):
+        clean_term = (search_term or "").strip().lstrip("@").lstrip("#")
+        return super().get_search_results(
+            request,
+            queryset,
+            clean_term,
+        )
+
     @action(
         description="📊 آمار کلی و حسابداری",
         url_path="go-to-accounting",
     )
     def open_accounting_dashboard_action(
-            self,
-            request,
+        self,
+        request,
     ):
         return redirect(reverse_lazy("admin:core_accountingreport_changelist"))
 
     @admin.display(description="مبلغ")
     def formatted_amount(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return f"{obj.amount:,} تومان"
 
@@ -546,15 +756,15 @@ class TransactionAdmin(ModelAdmin):
         ordering="created_at",
     )
     def jalali_created_at(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return format_jalali(obj.created_at)
 
     @admin.display(description="تصویر رسید")
     def receipt_preview(
-            self,
-            obj,
+        self,
+        obj,
     ):
         if obj.receipt_image:
             return format_html(
@@ -570,8 +780,8 @@ class TransactionAdmin(ModelAdmin):
 
     @admin.display(description="مشاهده تصویر کامل رسید")
     def receipt_preview_large(
-            self,
-            obj,
+        self,
+        obj,
     ):
         if obj.receipt_image:
             return format_html(
@@ -584,9 +794,9 @@ class TransactionAdmin(ModelAdmin):
         return "تصویری آپلود نشده است."
 
     def _notify_approved_tx(
-            self,
-            tx,
-            auto_order,
+        self,
+        tx,
+        auto_order,
     ):
         if auto_order:
             if auto_order.status == 'active' and auto_order.config_link:
@@ -626,11 +836,11 @@ class TransactionAdmin(ModelAdmin):
             )
 
     def save_model(
-            self,
-            request,
-            obj,
-            form,
-            change,
+        self,
+        request,
+        obj,
+        form,
+        change,
     ):
         if obj.status == 'approved' and not obj.is_processed:
             super().save_model(
@@ -663,9 +873,9 @@ class TransactionAdmin(ModelAdmin):
 
     @admin.action(description="✅ تایید رسیدهای انتخاب شده و ساخت خودکار کانفیگ در پاسارگارد")
     def approve_transactions(
-            self,
-            request,
-            queryset,
+        self,
+        request,
+        queryset,
     ):
         for tx in queryset.filter(is_processed=False):
             success, _, updated_tx, auto_order = approve_transaction_sync(tx.id)
@@ -677,9 +887,9 @@ class TransactionAdmin(ModelAdmin):
 
     @admin.action(description="❌ رد کردن رسیدهای انتخاب شده")
     def reject_transactions(
-            self,
-            request,
-            queryset,
+        self,
+        request,
+        queryset,
     ):
         for tx in queryset.filter(is_processed=False):
             tx.status = 'rejected'
@@ -706,6 +916,7 @@ class SubscriptionOrderAdmin(ModelAdmin):
     list_filter = (
         'status',
         'order_type',
+        'plan',
         'created_at',
     )
     search_fields = (
@@ -722,20 +933,48 @@ class SubscriptionOrderAdmin(ModelAdmin):
     readonly_fields = (
         'jalali_created_at',
     )
-    exclude = (
-        'created_at',
-        'plan_title',
-        'plan_category',
+    fieldsets = (
+        (
+            "اطلاعات سفارش و کاربر",
+            {
+                "fields": (
+                    ("user", "plan", "order_type"),
+                    ("custom_name", "panel_username", "status"),
+                    ("price_paid", "expires_at", "jalali_created_at"),
+                ),
+            },
+        ),
+        (
+            "لینک اشتراک / کانفیگ",
+            {
+                "fields": (
+                    "config_link",
+                ),
+            },
+        ),
     )
     actions = ['retry_pasarguard_generation']
+
+    def get_search_results(
+        self,
+        request,
+        queryset,
+        search_term,
+    ):
+        clean_term = (search_term or "").strip().lstrip("@")
+        return super().get_search_results(
+            request,
+            queryset,
+            clean_term,
+        )
 
     @admin.display(
         description="تاریخ ثبت (شمسی)",
         ordering="created_at",
     )
     def jalali_created_at(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return format_jalali(obj.created_at)
 
@@ -744,8 +983,8 @@ class SubscriptionOrderAdmin(ModelAdmin):
         ordering="expires_at",
     )
     def jalali_expires_at(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return format_jalali(
             obj.expires_at,
@@ -754,9 +993,9 @@ class SubscriptionOrderAdmin(ModelAdmin):
 
     @admin.action(description="🔄 ساخت خودکار کانفیگ در پنل پاسارگارد برای سفارش‌های منتظر")
     def retry_pasarguard_generation(
-            self,
-            request,
-            queryset,
+        self,
+        request,
+        queryset,
     ):
         bot_setting, _ = BotSetting.objects.get_or_create(id=1)
         success_count = 0
@@ -783,10 +1022,19 @@ class SubscriptionOrderAdmin(ModelAdmin):
             if not tpl_id:
                 continue
 
+            seq_num = (
+                SubscriptionOrder.objects.filter(
+                    user=order.user,
+                    order_type=order.order_type,
+                    id__lte=order.id,
+                ).count()
+                or 1
+            )
             ok, sub_url, panel_user, _ = create_user_from_template(
                 template_id=tpl_id,
                 base_username=order.custom_name,
                 note=f"Retry Order #{order.id} | TG: {order.user.telegram_id}",
+                sequence_number=seq_num,
             )
             if ok and sub_url:
                 order.config_link = sub_url.strip()
@@ -821,11 +1069,11 @@ class SubscriptionOrderAdmin(ModelAdmin):
         )
 
     def save_model(
-            self,
-            request,
-            obj,
-            form,
-            change,
+        self,
+        request,
+        obj,
+        form,
+        change,
     ):
         if obj.status == 'active' and obj.config_link and not obj.notified_user:
             if not obj.expires_at:
@@ -860,6 +1108,7 @@ class SubscriptionOrderAdmin(ModelAdmin):
 
 @admin.register(SupportTicket)
 class SupportTicketAdmin(ModelAdmin):
+    form = SupportTicketAdminForm
     list_display = (
         'id',
         'user',
@@ -873,31 +1122,55 @@ class SupportTicketAdmin(ModelAdmin):
     search_fields = (
         'user__telegram_id',
         'user__username',
+        'user__full_name',
         'user_message',
     )
+    autocomplete_fields = ('user',)
     readonly_fields = (
-        'user',
-        'user_message',
         'jalali_created_at',
     )
-    exclude = ('created_at',)
+    fieldsets = (
+        (
+            "جزئیات تیکت پشتیبانی",
+            {
+                "fields": (
+                    ("user", "status", "jalali_created_at"),
+                    "user_message",
+                    "admin_reply",
+                ),
+            },
+        ),
+    )
+
+    def get_search_results(
+        self,
+        request,
+        queryset,
+        search_term,
+    ):
+        clean_term = (search_term or "").strip().lstrip("@")
+        return super().get_search_results(
+            request,
+            queryset,
+            clean_term,
+        )
 
     @admin.display(
         description="تاریخ ثبت (شمسی)",
         ordering="created_at",
     )
     def jalali_created_at(
-            self,
-            obj,
+        self,
+        obj,
     ):
         return format_jalali(obj.created_at)
 
     def save_model(
-            self,
-            request,
-            obj,
-            form,
-            change,
+        self,
+        request,
+        obj,
+        form,
+        change,
     ):
         if obj.admin_reply and not obj.reply_sent:
             obj.status = 'answered'
@@ -935,10 +1208,87 @@ class RequiredChannelAdmin(ModelAdmin):
         'title',
         'chat_id',
     )
+    fieldsets = (
+        (
+            "مشخصات کانال جوین اجباری",
+            {
+                "fields": (
+                    ("title", "chat_id"),
+                    ("invite_link", "sort_order", "is_active"),
+                ),
+            },
+        ),
+    )
 
 
 @admin.register(BotSetting)
 class BotSettingAdmin(ModelAdmin):
+    form = BotSettingAdminForm
+    list_display = (
+        '__str__',
+        'card_number',
+        'card_holder',
+        'pasarguard_base_url',
+        'free_test_enabled',
+        'backup_enabled',
+        'backup_interval_minutes',
+        'jalali_last_backup_at',
+    )
+    readonly_fields = (
+        'jalali_last_backup_at',
+    )
+    fieldsets = (
+        (
+            "💳 مالی، کارت‌به‌کارت و ضد اسپم",
+            {
+                "classes": ["tab"],
+                "fields": (
+                    ("card_number", "card_holder"),
+                    ("min_wallet_charge", "wallet_preset_amounts"),
+                    ("max_receipt_size_mb", "receipt_cooldown_seconds", "max_pending_receipts"),
+                    ("max_open_tickets", "rate_limit_per_minute", "support_username"),
+                ),
+            },
+        ),
+        (
+            "🌐 اتصال پاسارگارد و بکاپ خودکار",
+            {
+                "classes": ["tab"],
+                "fields": (
+                    ("pasarguard_base_url", "pasarguard_api_key"),
+                    ("pasarguard_verify_ssl",),
+                    ("backup_enabled", "backup_interval_minutes", "jalali_last_backup_at"),
+                ),
+            },
+        ),
+        (
+            "🎁 تست رایگان و جوایز دعوت دوستان",
+            {
+                "classes": ["tab"],
+                "fields": (
+                    ("free_test_enabled", "free_test_template_id", "free_test_title", "free_test_days"),
+                    ("referral_required_count", "referral_gift_template_id", "referral_gift_title", "referral_gift_days"),
+                    ("referral_milestone_10_template_id", "referral_milestone_10_title", "referral_milestone_10_days"),
+                    ("referral_milestone_20_template_id", "referral_milestone_20_title", "referral_milestone_20_days"),
+                    ("referral_share_text",),
+                ),
+            },
+        ),
+        (
+            "📝 متون ربات، لینک‌های آموزش و استیکرها",
+            {
+                "classes": ["tab"],
+                "fields": (
+                    ("direct_btn_title", "tunnel_btn_title"),
+                    ("welcome_text", "buy_menu_text"),
+                    ("volume_plan_header", "unlimited_plan_header"),
+                    ("tutorial_android_url", "tutorial_ios_url", "tutorial_windows_url"),
+                    ("sticker_welcome", "sticker_buy", "sticker_wallet"),
+                    ("sticker_account", "sticker_empty"),
+                ),
+            },
+        ),
+    )
     actions_list = [
         'reset_all_free_tests_from_settings',
     ]
@@ -946,13 +1296,20 @@ class BotSettingAdmin(ModelAdmin):
         'reset_all_free_tests_detail',
     ]
 
+    @admin.display(description="آخرین بکاپ ارسالی (شمسی)")
+    def jalali_last_backup_at(
+        self,
+        obj,
+    ):
+        return format_jalali(obj.last_backup_at)
+
     @action(
         description="ریست و فعال‌سازی تست برای همه",
         url_path="reset-all-free-tests-settings",
     )
     def reset_all_free_tests_from_settings(
-            self,
-            request,
+        self,
+        request,
     ):
         cancel_url = str(reverse_lazy("admin:core_botsetting_changelist"))
         if request.method == "POST" and request.POST.get("confirm") == "yes":
@@ -972,9 +1329,9 @@ class BotSettingAdmin(ModelAdmin):
         url_path="reset-all-free-tests-detail",
     )
     def reset_all_free_tests_detail(
-            self,
-            request,
-            object_id,
+        self,
+        request,
+        object_id,
     ):
         cancel_url = str(
             reverse_lazy(
@@ -995,8 +1352,8 @@ class BotSettingAdmin(ModelAdmin):
         )
 
     def has_add_permission(
-            self,
-            request,
+        self,
+        request,
     ):
         return not BotSetting.objects.exists()
 

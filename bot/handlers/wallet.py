@@ -20,6 +20,7 @@ from bot.keyboards import (
     BTN_CHARGE_WALLET,
     get_main_menu_keyboard,
     get_wallet_preset_amounts_kb,
+    get_wallet_custom_amount_kb,
     get_invoice_cancel_kb,
     get_admin_receipt_approval_kb,
     get_admin_send_config_kb,
@@ -114,6 +115,27 @@ async def start_wallet_charge(
 
 
 @router.callback_query(
+    F.data == "back_to_wallet_amounts",
+)
+async def back_to_wallet_amounts(
+    callback: CallbackQuery,
+    state: FSMContext,
+):
+    await state.set_state(WalletChargeState.selecting_amount)
+    prices = await get_distinct_active_plan_prices()
+    text = (
+        "💰 <b>افزایش موجودی کیف پول</b>\n\n"
+        "مبلغ مورد نظر برای شارژ کیف پول رو انتخاب کن یا گزینه «مبلغ دلخواه» رو بزن:"
+    )
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_wallet_preset_amounts_kb(prices),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(
     F.data == "cancel_wallet_flow",
 )
 async def cancel_wallet_flow(
@@ -151,6 +173,7 @@ async def select_charge_amount(
         await callback.message.edit_text(
             f"✏️ لطفاً مبلغ مورد نظر خود را به <b>تومان</b> و فقط با ارقام انگلیسی وارد کنید:\n"
             f"<i>(حداقل مبلغ: {min_amt:,} تومان)</i>",
+            reply_markup=get_wallet_custom_amount_kb(),
             parse_mode="HTML",
         )
         await callback.answer()
@@ -184,14 +207,16 @@ async def process_custom_amount(
     )
     if not clean_text.isdigit():
         await message.answer(
-            f"⚠️ لطفاً فقط عدد انگلیسی وارد کنید (مثلاً: {min_amt}):"
+            f"⚠️ لطفاً فقط عدد انگلیسی وارد کنید (مثلاً: {min_amt}):",
+            reply_markup=get_wallet_custom_amount_kb(),
         )
         return
 
     amount = int(clean_text)
     if amount < min_amt:
         await message.answer(
-            f"⚠️ حداقل مبلغ افزایش موجودی {min_amt:,} تومان می‌باشد. لطفاً دوباره وارد کنید:"
+            f"⚠️ حداقل مبلغ افزایش موجودی {min_amt:,} تومان می‌باشد. لطفاً دوباره وارد کنید:",
+            reply_markup=get_wallet_custom_amount_kb(),
         )
         return
 
@@ -228,10 +253,6 @@ async def issue_invoice(
         user_id,
         amount,
     )
-    max_mb = max(
-        1,
-        bot_settings.max_receipt_size_mb,
-    )
     inv_date = format_jalali(tx.created_at)
 
     await state.set_state(WalletChargeState.uploading_receipt)
@@ -248,7 +269,7 @@ async def issue_invoice(
         f"💳 <b>شماره کارت جهت واریز:</b>\n"
         f"<code>{bot_settings.card_number}</code>\n"
         f"👤 به نام: <b>{bot_settings.card_holder}</b>\n\n"
-        f"📌 بعد از واریز، عکس رسید (حداکثر <b>{max_mb} مگابایت</b>) یا متن رسید رو همینجا ارسال کن.\n"
+        f"📌 بعد از واریز، عکس رسید یا متن رسید رو همینجا ارسال کن.\n"
         f"✅ به محض تایید ادمین، موجودی کیف پولت خودکار شارژ میشه."
     )
     await msg.answer(
@@ -414,11 +435,9 @@ async def process_receipt_photo(
 
     photo = message.photo[-1]
     if photo.file_size and photo.file_size > max_bytes:
-        actual_mb = photo.file_size / (1024 * 1024)
         await message.answer(
-            f"❌ <b>حجم تصویر ارسالی ({actual_mb:.1f} مگابایت) بیشتر از حد مجاز است!</b>\n\n"
-            f"⚠️ حداکثر حجم مجاز برای آپلود رسید <b>{max_mb} مگابایت</b> می‌باشد.\n"
-            f"لطفاً تصویر کم‌حجم‌تری ارسال کنید یا اطلاعات رسید را به صورت <b>متن</b> بفرستید:",
+            "❌ <b>حجم تصویر ارسالی بیش از حد مجاز است!</b>\n\n"
+            "لطفاً تصویر کم‌حجم‌تری ارسال کنید یا اطلاعات رسید را به صورت <b>متن</b> بفرستید:",
             parse_mode="HTML",
         )
         return
@@ -461,11 +480,9 @@ async def process_receipt_document(
 
     doc = message.document
     if doc.file_size and doc.file_size > max_bytes:
-        actual_mb = doc.file_size / (1024 * 1024)
         await message.answer(
-            f"❌ <b>حجم فایل ارسالی ({actual_mb:.1f} مگابایت) بیشتر از حد مجاز است!</b>\n\n"
-            f"⚠️ حداکثر حجم مجاز برای آپلود رسید <b>{max_mb} مگابایت</b> می‌باشد.\n"
-            f"لطفاً عکس رسید را به صورت <b>تصویر معمولی (فشرده)</b> و زیر {max_mb} مگابایت ارسال کنید یا متن رسید را بنویسید:",
+            "❌ <b>حجم فایل ارسالی بیش از حد مجاز است!</b>\n\n"
+            "لطفاً عکس رسید را به صورت <b>تصویر معمولی (فشرده)</b> ارسال کنید یا متن رسید را بنویسید:",
             parse_mode="HTML",
         )
         return
@@ -473,8 +490,8 @@ async def process_receipt_document(
     mime = (doc.mime_type or "").lower()
     if mime not in ALLOWED_IMAGE_MIME_TYPES:
         await message.answer(
-            f"⚠️ <b>فرمت فایل ارسالی مجاز نیست!</b>\n\n"
-            f"لطفاً فقط <b>عکس (اسکرین‌شات) رسید</b> با حجم حداکثر <b>{max_mb} مگابایت</b> یا متن رسید را ارسال کنید:",
+            "⚠️ <b>فرمت فایل ارسالی مجاز نیست!</b>\n\n"
+            "لطفاً فقط <b>عکس (اسکرین‌شات) رسید</b> یا متن رسید را ارسال کنید:",
             parse_mode="HTML",
         )
         return
@@ -588,14 +605,9 @@ async def process_receipt_text(
 async def process_unsupported_receipt_media(
     message: Message,
 ):
-    bot_settings = await get_bot_settings()
-    max_mb = max(
-        1,
-        bot_settings.max_receipt_size_mb,
-    )
     await message.answer(
-        f"⚠️ <b>نوع پیام ارسالی معتبر نیست!</b>\n\n"
-        f"لطفاً فقط <b>عکس رسید (حداکثر {max_mb} مگابایت)</b> یا <b>متن اطلاعات واریز</b> را ارسال فرمایید:",
+        "⚠️ <b>نوع پیام ارسالی معتبر نیست!</b>\n\n"
+        "لطفاً فقط <b>عکس رسید</b> یا <b>متن اطلاعات واریز</b> را ارسال فرمایید:",
         parse_mode="HTML",
     )
 

@@ -1,7 +1,5 @@
 import logging
 import re
-import secrets
-import string
 import requests
 from django.conf import settings
 
@@ -42,8 +40,9 @@ def get_pasarguard_Runtime_credentials() -> tuple[str, str, bool]:
     )
 
 
-def build_unique_panel_username(
+def build_sequential_panel_username(
     base_name: str,
+    sequence_number: int | None = None,
 ) -> str:
     clean = re.sub(
         r'[^a-zA-Z0-9_]',
@@ -57,19 +56,20 @@ def build_unique_panel_username(
     ).strip('_')
     if len(clean) < 3:
         clean = f"usr{clean}"
-    clean = clean[:20].rstrip('_')
+    clean = clean[:24].rstrip('_')
 
-    alphabet = string.ascii_lowercase + string.digits
-    suffix = ''.join(
-        secrets.choice(alphabet) for _ in range(4)
-    )
-    return f"{clean}_{suffix}"
+    if sequence_number is not None and sequence_number > 0:
+        suffix_str = f"_{sequence_number}"
+        if not clean.endswith(suffix_str):
+            return f"{clean}{suffix_str}"
+    return clean
 
 
 def create_user_from_template(
     template_id: int,
     base_username: str,
     note: str = "",
+    sequence_number: int | None = None,
 ) -> tuple[bool, str | None, str | None, str | None]:
     base_url, api_key, verify_ssl = get_pasarguard_Runtime_credentials()
 
@@ -89,69 +89,90 @@ def create_user_from_template(
             "PasarGuard Template ID is not set for this plan.",
         )
 
-    panel_username = build_unique_panel_username(base_username)
     url = f"{base_url}/api/user/from_template"
     headers = {
         "X-Api-Key": api_key,
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    payload = {
-        "user_template_id": int(template_id),
-        "username": panel_username,
-        "note": note[:250] if note else "",
-    }
 
-    try:
-        response = requests.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=12,
-            verify=verify_ssl,
-            proxies=get_requests_proxies(),
+    start_seq = sequence_number if (sequence_number is not None and sequence_number > 0) else 1
+    last_error = None
+
+    for attempt in range(15):
+        current_seq = start_seq + attempt if sequence_number is not None else (None if attempt == 0 else attempt + 1)
+        panel_username = build_sequential_panel_username(
+            base_username,
+            sequence_number=current_seq,
         )
-        if response.status_code in (200, 201):
-            data = response.json()
-            created_username = data.get("username") or panel_username
+        payload = {
+            "user_template_id": int(template_id),
+            "username": panel_username,
+            "note": note[:250] if note else "",
+        }
 
-            sub_url = data.get("subscription_url") or ""
-            if sub_url and sub_url.startswith("/"):
-                sub_url = f"{base_url}{sub_url}"
-            elif not sub_url and data.get("token"):
-                sub_url = f"{base_url}/sub/{data['token']}"
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=12,
+                verify=verify_ssl,
+                proxies=get_requests_proxies(),
+            )
+            if response.status_code in (200, 201):
+                data = response.json()
+                created_username = data.get("username") or panel_username
 
-            if sub_url:
+                sub_url = data.get("subscription_url") or ""
+                if sub_url and sub_url.startswith("/"):
+                    sub_url = f"{base_url}{sub_url}"
+                elif not sub_url and data.get("token"):
+                    sub_url = f"{base_url}/sub/{data['token']}"
+
+                if sub_url:
+                    return (
+                        True,
+                        sub_url,
+                        created_username,
+                        None,
+                    )
                 return (
-                    True,
-                    sub_url,
-                    created_username,
+                    False,
                     None,
+                    created_username,
+                    "User created on panel, but subscription_url was missing in response.",
                 )
+
+            resp_text_lower = (response.text or "").lower()
+            if response.status_code in (400, 409, 422) and ("exist" in resp_text_lower or "already" in resp_text_lower or "duplicate" in resp_text_lower):
+                last_error = f"Username {panel_username} already exists."
+                continue
+
+            logger.error(
+                f"PasarGuard API Error ({response.status_code}): {response.text}"
+            )
             return (
                 False,
                 None,
-                created_username,
-                "User created on panel, but subscription_url was missing in response.",
+                None,
+                f"Panel HTTP {response.status_code}: {response.text[:150]}",
+            )
+        except requests.RequestException as exc:
+            logger.exception(f"PasarGuard connection failed: {exc}")
+            return (
+                False,
+                None,
+                None,
+                f"Connection error: {exc}",
             )
 
-        logger.error(
-            f"PasarGuard API Error ({response.status_code}): {response.text}"
-        )
-        return (
-            False,
-            None,
-            None,
-            f"Panel HTTP {response.status_code}: {response.text[:150]}",
-        )
-    except requests.RequestException as exc:
-        logger.exception(f"PasarGuard connection failed: {exc}")
-        return (
-            False,
-            None,
-            None,
-            f"Connection error: {exc}",
-        )
+    return (
+        False,
+        None,
+        None,
+        last_error or "Could not create unique sequential username.",
+    )
 
 
 def fetch_pasarguard_templates_list() -> list[dict]:
@@ -252,9 +273,9 @@ def fetch_pasarguard_groups() -> list[dict]:
             except (ValueError, TypeError):
                 continue
             if gid_int not in inferred_groups:
-                if "tunnel" in t_name:
+                if "tunnel" in t_name and len(g_ids) == 1:
                     inferred_groups[gid_int] = "Reis tunnel"
-                elif "direct" in t_name:
+                elif "direct" in t_name and len(g_ids) == 1:
                     inferred_groups[gid_int] = "Reis Group"
                 else:
                     inferred_groups[gid_int] = f"Group #{gid_int}"
@@ -276,17 +297,19 @@ def resolve_default_group_ids_for_plan_type(
 ) -> list[int]:
     groups = fetch_pasarguard_groups()
     if not groups:
-        return [1]
+        return [1, 2] if plan_type in ("tunnel", "both") else [1]
 
-    target_keyword = "tunnel" if plan_type == "tunnel" else "group"
-    for g in groups:
-        g_name_lower = g["name"].lower()
-        if plan_type == "tunnel" and "tunnel" in g_name_lower:
-            return [g["id"]]
-        if plan_type == "direct" and "tunnel" not in g_name_lower and (
-            "group" in g_name_lower or "direct" in g_name_lower or "reis" in g_name_lower
-        ):
-            return [g["id"]]
+    if plan_type in ("tunnel", "both"):
+        all_ids = [g["id"] for g in groups]
+        return all_ids if all_ids else [1]
+
+    direct_ids = [
+        g["id"]
+        for g in groups
+        if "tunnel" not in g["name"].lower()
+    ]
+    if direct_ids:
+        return [direct_ids[0]]
 
     return [groups[0]["id"]]
 
@@ -296,11 +319,11 @@ def create_or_update_user_template(
     group_ids: list[int],
     data_limit_bytes: int = 0,
     expire_duration_seconds: int = 0,
-    status: str = "active",
+    status: str = "on_hold",
     on_hold_timeout_seconds: int | None = None,
     data_limit_reset_strategy: str = "no_reset",
     reset_usages: bool = False,
-    hwid_limit: int | None = None,
+    hwid_limit: int | None = 0,
     username_prefix: str | None = None,
     username_suffix: str | None = None,
     method: str = "chacha20-ietf-poly1305",
@@ -339,7 +362,7 @@ def create_or_update_user_template(
         "group_ids": valid_groups,
         "data_limit": max(0, int(data_limit_bytes or 0)),
         "expire_duration": max(0, int(expire_duration_seconds or 0)),
-        "status": status if status in ("active", "on_hold") else "active",
+        "status": status if status in ("active", "on_hold") else "on_hold",
         "data_limit_reset_strategy": data_limit_reset_strategy or "no_reset",
         "reset_usages": bool(reset_usages),
         "is_disabled": bool(is_disabled),
@@ -351,10 +374,10 @@ def create_or_update_user_template(
     if hwid_limit is not None and str(hwid_limit).strip() != "":
         payload["hwid_limit"] = max(0, int(hwid_limit))
 
-    if payload["status"] == "on_hold" and payload["expire_duration"] > 0:
+    if payload["status"] == "on_hold" and payload["expire_duration"] > 0 and on_hold_timeout_seconds:
         payload["on_hold_timeout"] = max(
             60,
-            int(on_hold_timeout_seconds or 3600),
+            int(on_hold_timeout_seconds),
         )
 
     headers = {

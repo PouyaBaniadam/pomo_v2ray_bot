@@ -12,6 +12,8 @@ from aiogram.types import (
     CallbackQuery,
     ErrorEvent,
     Update,
+    BotCommand,
+    BotCommandScopeChat,
 )
 from aiogram.fsm.context import FSMContext
 
@@ -55,6 +57,7 @@ router = Router()
 async def cmd_start(
     message: Message,
     state: FSMContext,
+    bot: Bot,
 ):
     await state.clear()
 
@@ -72,6 +75,34 @@ async def cmd_start(
         full_name=message.from_user.full_name,
         referrer_id=referrer_id,
     )
+
+    admin_ids = await get_all_admin_ids()
+    try:
+        if user.telegram_id in admin_ids:
+            await bot.set_my_commands(
+                commands=[
+                    BotCommand(
+                        command="start",
+                        description="شروع مجدد 🔄",
+                    ),
+                    BotCommand(
+                        command="admin",
+                        description="پنل مدیریت تلگرام 🛠",
+                    ),
+                ],
+                scope=BotCommandScopeChat(
+                    chat_id=user.telegram_id,
+                ),
+            )
+        else:
+            await bot.delete_my_commands(
+                scope=BotCommandScopeChat(
+                    chat_id=user.telegram_id,
+                ),
+            )
+    except Exception:
+        pass
+
     bot_settings = await get_bot_settings()
 
     if bot_settings.sticker_welcome:

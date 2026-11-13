@@ -1,0 +1,116 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<style>
+    .rst-wrapper {
+        max-width: 560px;
+        margin: 36px auto;
+        direction: rtl;
+        text-align: right;
+        font-family: inherit;
+    }
+    .rst-card {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 28px;
+        color: #f3f4f6;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+    }
+    .rst-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #f9fafb;
+        margin: 0 0 14px 0;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #1f2937;
+    }
+    .rst-desc {
+        font-size: 0.88rem;
+        line-height: 1.8;
+        color: #d1d5db;
+        margin-bottom: 18px;
+    }
+    .rst-stats {
+        background-color: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-bottom: 22px;
+        font-size: 0.85rem;
+        color: #e5e7eb;
+    }
+    .rst-stats-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+    }
+    .rst-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .rst-btn-confirm {
+        background-color: #9333ea;
+        color: #ffffff;
+        font-size: 0.875rem;
+        font-weight: 600;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+    .rst-btn-confirm:hover {
+        background-color: #7e22ce;
+    }
+    .rst-btn-cancel {
+        background-color: transparent;
+        color: #d1d5db;
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 9px 18px;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+    }
+    .rst-btn-cancel:hover {
+        background-color: #1f2937;
+    }
+</style>
+
+<div class="rst-wrapper" dir="rtl">
+    <div class="rst-card">
+        <h2 class="rst-title">🎁 تاییدیه ریست و فعال‌سازی مجدد تست رایگان</h2>
+        <div class="rst-desc">
+            با تایید این عملیات، وضعیت استفاده از تست رایگان برای تمامی کاربران ربات صفر می‌شود و همه کاربران (حتی کسانی که قبلاً تست گرفته‌اند) می‌توانند یک‌بار دیگر تست رایگان دریافت کنند.
+        </div>
+
+        <div class="rst-stats">
+            <div class="rst-stats-row">
+                <span>کل کاربران ثبت‌شده در ربات:</span>
+                <strong>{{ total_count }} نفر</strong>
+            </div>
+            <div class="rst-stats-row">
+                <span>کاربرانی که قبلاً تست گرفته‌اند و ریست می‌شوند:</span>
+                <strong style="color: #4ade80;">{{ affected_count }} نفر</strong>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="confirm" value="yes" />
+            <div class="rst-actions">
+                <button type="submit" class="rst-btn-confirm">
+                    بله، برای همه فعال شود
+                </button>
+                <a href="{{ cancel_url }}" class="rst-btn-cancel">
+                    انصراف و بازگشت
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

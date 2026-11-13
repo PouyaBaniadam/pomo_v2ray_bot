@@ -127,7 +127,7 @@ UNFOLD = {
                         "link": reverse_lazy("admin:core_subscriptionorder_changelist"),
                     },
                     {
-                        "title": "پلن‌های فروش (دایرکت و تانل)",
+                        "title": "پلن‌های فروش",
                         "icon": "tune",
                         "link": reverse_lazy("admin:core_plan_changelist"),
                     },
@@ -138,7 +138,7 @@ UNFOLD = {
                 "separator": True,
                 "items": [
                     {
-                        "title": "فاکتورها و رسیدهای کارت‌به‌کارت",
+                        "title": "فاکتورها و رسیدها",
                         "icon": "receipt_long",
                         "link": reverse_lazy("admin:core_transaction_changelist"),
                     },
@@ -159,7 +159,7 @@ UNFOLD = {
                         "link": reverse_lazy("admin:core_telegramuser_changelist"),
                     },
                     {
-                        "title": "پیام‌های همگانی (Broadcast)",
+                        "title": "پیام‌های همگانی",
                         "icon": "campaign",
                         "link": reverse_lazy("admin:core_broadcastmessage_changelist"),
                     },

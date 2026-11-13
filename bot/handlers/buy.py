@@ -245,10 +245,6 @@ async def show_purchase_summary(
             target_plan_id=plan.id,
             target_custom_name=sname,
         )
-        max_mb = max(
-            1,
-            bot_settings.max_receipt_size_mb,
-        )
         inv_date = format_jalali(tx.created_at)
 
         await state.set_state(WalletChargeState.uploading_receipt)
@@ -279,7 +275,7 @@ async def show_purchase_summary(
             f"💳 <b>شماره کارت جهت واریز:</b>\n"
             f"<code>{bot_settings.card_number}</code>\n"
             f"👤 <b>به نام:</b> <b>{bot_settings.card_holder}</b>\n\n"
-            f"📌 پس از واریز، <b>عکس رسید (حداکثر {max_mb} مگابایت) یا متن رسید</b> را همین‌جا ارسال کنید؛ به محض تایید ادمین، سرویس شما <b>به صورت خودکار</b> فعال و برایتان ارسال می‌شود."
+            f"📌 پس از واریز، <b>عکس رسید یا متن رسید</b> را همین‌جا ارسال کنید؛ به محض تایید ادمین، سرویس شما <b>به صورت خودکار</b> فعال و برایتان ارسال می‌شود."
         )
         await msg.answer(
             direct_invoice_text,
@@ -357,10 +353,6 @@ async def execute_purchase(
             target_plan_id=plan_id,
             target_custom_name=sname,
         )
-        max_mb = max(
-            1,
-            bot_settings.max_receipt_size_mb,
-        )
         inv_date = format_jalali(tx.created_at)
         await state.set_state(WalletChargeState.uploading_receipt)
         await state.update_data(
@@ -375,7 +367,7 @@ async def execute_purchase(
             f"💳 <b>شماره کارت جهت واریز:</b>\n"
             f"<code>{bot_settings.card_number}</code>\n"
             f"👤 به نام: <b>{bot_settings.card_holder}</b>\n\n"
-            f"📌 عکس رسید (حداکثر <b>{max_mb} مگابایت</b>) یا متن رسید را همین‌جا بفرستید تا پس از تایید، سرویس خودکار برایتان ارسال شود.",
+            f"📌 عکس رسید یا متن رسید را همین‌جا بفرستید تا پس از تایید، سرویس خودکار برایتان ارسال شود.",
             reply_markup=get_invoice_cancel_kb(
                 tx.invoice_number,
                 bot_settings.card_number,

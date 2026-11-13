@@ -107,12 +107,61 @@ def send_telegram_message_sync(
         return False
 
 
+def sync_user_bot_commands_sync(
+    telegram_id: int,
+    is_admin_user: bool,
+) -> bool:
+    if not settings.BOT_TOKEN:
+        return False
+    base_api = f"https://api.telegram.org/bot{settings.BOT_TOKEN}"
+    try:
+        if is_admin_user:
+            resp = requests.post(
+                f"{base_api}/setMyCommands",
+                json={
+                    "commands": [
+                        {"command": "start", "description": "شروع مجدد 🔄"},
+                        {"command": "admin", "description": "پنل مدیریت تلگرام 🛠"},
+                    ],
+                    "scope": {
+                        "type": "chat",
+                        "chat_id": int(telegram_id),
+                    },
+                },
+                timeout=6,
+                proxies=get_requests_proxies(),
+            )
+            return resp.status_code == 200
+
+        resp = requests.post(
+            f"{base_api}/deleteMyCommands",
+            json={
+                "scope": {
+                    "type": "chat",
+                    "chat_id": int(telegram_id),
+                },
+            },
+            timeout=6,
+            proxies=get_requests_proxies(),
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
 def fulfill_plan_order_for_user_sync(
     user: TelegramUser,
     plan: Plan,
     custom_name: str,
 ) -> SubscriptionOrder:
     now = timezone.now()
+    purchase_seq = (
+        SubscriptionOrder.objects.filter(
+            user=user,
+            order_type='purchase',
+        ).count()
+        + 1
+    )
     order = SubscriptionOrder.objects.create(
         user=user,
         plan=plan,
@@ -126,7 +175,8 @@ def fulfill_plan_order_for_user_sync(
         success, sub_url, panel_username, err = create_user_from_template(
             template_id=plan.pasarguard_template_id,
             base_username=custom_name,
-            note=f"Order #{order.id} | Plan: {plan.title} | TG: {user.telegram_id}",
+            note=f"Order #{order.id} | Purchase #{purchase_seq} | Plan: {plan.title} | TG: {user.telegram_id}",
+            sequence_number=purchase_seq,
         )
         if success and sub_url:
             order.config_link = sub_url.strip()
@@ -244,7 +294,7 @@ def upsert_telegram_user(
     full_name: str = None,
     referrer_id: int = None,
 ):
-    pending_gift_info = None
+    pending_gifts_list = []
     rem_notification = None
     is_super_admin = bool(
         getattr(settings, 'ADMIN_TELEGRAM_ID', 0)
@@ -298,11 +348,6 @@ def upsert_telegram_user(
                     1,
                     bot_setting.referral_required_count,
                 )
-                gift_title = bot_setting.referral_gift_title
-                gift_days = max(
-                    1,
-                    bot_setting.referral_gift_days,
-                )
 
                 user.referred_by = referrer
                 user.save(
@@ -310,63 +355,111 @@ def upsert_telegram_user(
                 )
 
                 referrer.valid_referrals_count += 1
-                earned_gifts_total = referrer.valid_referrals_count // req_count
-                new_gifts_count = earned_gifts_total - referrer.referral_gifts_received
+                curr_refs = referrer.valid_referrals_count
 
-                if new_gifts_count > 0:
-                    referrer.referral_gifts_received = earned_gifts_total
+                rewards_to_issue = []
+
+                if curr_refs % req_count == 0:
+                    rewards_to_issue.append(
+                        (
+                            bot_setting.referral_gift_template_id,
+                            bot_setting.referral_gift_title,
+                            max(1, bot_setting.referral_gift_days),
+                            f"رسیدن به {curr_refs} دعوت موفق (ضریب {req_count})",
+                        )
+                    )
+
+                if curr_refs == 10:
+                    rewards_to_issue.append(
+                        (
+                            bot_setting.referral_milestone_10_template_id or bot_setting.referral_gift_template_id,
+                            bot_setting.referral_milestone_10_title,
+                            max(1, bot_setting.referral_milestone_10_days),
+                            "جایزه ویژه دهمین دعوت موفق (۱۰ نفر)",
+                        )
+                    )
+                elif curr_refs == 20:
+                    rewards_to_issue.append(
+                        (
+                            bot_setting.referral_milestone_20_template_id or bot_setting.referral_gift_template_id,
+                            bot_setting.referral_milestone_20_title,
+                            max(1, bot_setting.referral_milestone_20_days),
+                            "جایزه ویژه بیستمین دعوت موفق (۲۰ نفر)",
+                        )
+                    )
+
+                if rewards_to_issue:
+                    referrer.referral_gifts_received += len(rewards_to_issue)
                     referrer.save(
                         update_fields=[
                             'valid_referrals_count',
                             'referral_gifts_received',
                         ]
                     )
-                    gift_name = f"gift_{referrer.telegram_id}_{earned_gifts_total}"
-                    gift_order = SubscriptionOrder.objects.create(
+                    base_gift_seq = SubscriptionOrder.objects.filter(
                         user=referrer,
                         order_type='referral_gift',
-                        custom_name=gift_name,
-                        price_paid=0,
-                        status='pending_config',
-                    )
-                    pending_gift_info = (
-                        referrer,
-                        gift_order,
-                        bot_setting.referral_gift_template_id,
-                        gift_title,
-                        gift_days,
-                        req_count,
-                    )
+                    ).count()
+                    for idx, (tpl_id, g_title, g_days, reason_label) in enumerate(rewards_to_issue, start=1):
+                        seq_num = base_gift_seq + idx
+                        gift_name = f"gift_{referrer.telegram_id}_{seq_num}"
+                        gift_order = SubscriptionOrder.objects.create(
+                            user=referrer,
+                            order_type='referral_gift',
+                            custom_name=gift_name,
+                            price_paid=0,
+                            status='pending_config',
+                        )
+                        pending_gifts_list.append(
+                            (
+                                referrer,
+                                gift_order,
+                                tpl_id,
+                                g_title,
+                                g_days,
+                                reason_label,
+                                seq_num,
+                            )
+                        )
                 else:
                     referrer.save(
                         update_fields=['valid_referrals_count'],
                     )
-                    rem = req_count - (referrer.valid_referrals_count % req_count)
+                    rem = req_count - (curr_refs % req_count)
                     rem_notification = (
                         referrer.telegram_id,
                         full_name or 'کاربر تلگرام',
+                        curr_refs,
                         rem,
-                        gift_title,
+                        bot_setting.referral_gift_title,
                     )
             except TelegramUser.DoesNotExist:
                 pass
 
     if rem_notification:
-        ref_tid, fname, rem, g_title = rem_notification
+        ref_tid, fname, curr_refs, rem, g_title = rem_notification
+        milestone_hint = ""
+        if curr_refs < 10:
+            milestone_hint = f"\n🔥 همچنین فقط <b>{10 - curr_refs} دعوت دیگر</b> تا جایزه ویژه نفر دهم (۳۰ گیگ - ۱ هفته‌ای) باقی مانده!"
+        elif curr_refs < 20:
+            milestone_hint = f"\n🔥 همچنین فقط <b>{20 - curr_refs} دعوت دیگر</b> تا جایزه ویژه نفر بیستم (۱۰۰ گیگ - ۱ ماهه) باقی مانده!"
+
         send_telegram_message_sync(
             ref_tid,
             f"👥 <b>یک کاربر جدید ({fname}) با لینک دعوت شما عضو ربات شد!</b>\n"
-            f"⏳ تنها <b>{rem} دعوت دیگر</b> تا دریافت اشتراک هدیه ({g_title}) باقی مانده است.",
+            f"📊 کل دعوت‌های شما: <b>{curr_refs} نفر</b>\n"
+            f"⏳ تنها <b>{rem} دعوت دیگر</b> تا دریافت اشتراک هدیه ({g_title}) باقی مانده است."
+            f"{milestone_hint}",
         )
 
-    if pending_gift_info:
-        referrer, gift_order, tpl_id, gift_title, gift_days, req_count = pending_gift_info
+    for referrer, gift_order, tpl_id, gift_title, gift_days, reason_label, seq_num in pending_gifts_list:
         delivered = False
         if tpl_id:
             success, sub_url, panel_username, _ = create_user_from_template(
                 template_id=tpl_id,
-                base_username=gift_order.custom_name,
-                note=f"Referral Gift #{gift_order.id} | TG: {referrer.telegram_id}",
+                base_username=f"gift_{referrer.telegram_id}",
+                note=f"Referral Gift #{gift_order.id} ({reason_label}) | TG: {referrer.telegram_id}",
+                sequence_number=seq_num,
             )
             if success and sub_url:
                 gift_order.config_link = sub_url.strip()
@@ -387,15 +480,11 @@ def upsert_telegram_user(
 
         admin_ids = get_all_admin_ids_sync()
         if delivered:
-            exp_str = format_jalali(
-                gift_order.expires_at,
-                include_time=False,
-            )
             send_telegram_message_sync(
                 referrer.telegram_id,
-                f"🎉 <b>تبریک! شما به {referrer.valid_referrals_count} دعوت موفق رسیدید!</b>\n\n"
-                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> به صورت آنی برای شما فعال شد!\n"
-                f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n\n"
+                f"🎉 <b>تبریک! {reason_label}!</b>\n\n"
+                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> برای شما صادر شد!\n"
+                f"⏳ مدت اعتبار: <b>{gift_days} روز (شروع از اولین اتصال)</b>\n\n"
                 f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
                 f"<code>{gift_order.config_link}</code>\n\n"
                 f"💡 از دکمه‌های زیر می‌توانید لینک را کپی کنید یا QR Code آن را دریافت نمایید:",
@@ -407,19 +496,19 @@ def upsert_telegram_user(
             for aid in admin_ids:
                 send_telegram_message_sync(
                     aid,
-                    f"✅ <b>تحویل خودکار هدیه دعوت دوستان در پاسارگارد! (سفارش #{gift_order.id})</b>\n"
-                    f"کاربر <code>{referrer.telegram_id}</code> به {req_count} دعوت جدید رسید و هدیه <code>{gift_order.custom_name}</code> را دریافت کرد.",
+                    f"✅ <b>تحویل خودکار هدیه دعوت دوستان ({reason_label}) - سفارش #{gift_order.id}</b>\n"
+                    f"کاربر <code>{referrer.telegram_id}</code> هدیه <code>{gift_order.panel_username}</code> ({gift_title}) را دریافت کرد.",
                 )
         else:
             send_telegram_message_sync(
                 referrer.telegram_id,
-                f"🎉 <b>تبریک! شما به {referrer.valid_referrals_count} دعوت موفق رسیدید!</b>\n\n"
+                f"🎉 <b>تبریک! {reason_label}!</b>\n\n"
                 f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> برای شما ثبت شد و به زودی لینک آن برایتان ارسال می‌گردد.",
             )
             for aid in admin_ids:
                 send_telegram_message_sync(
                     aid,
-                    f"🎁 <b>هدیه دعوت دوستان ثبت شد! (سفارش #{gift_order.id})</b>\n"
+                    f"🎁 <b>هدیه دعوت دوستان ({reason_label}) ثبت شد! (سفارش #{gift_order.id})</b>\n"
                     f"⚠️ <i>ساخت خودکار در پاسارگارد انجام نشد.</i>\n"
                     f"کاربر: <code>{referrer.telegram_id}</code>",
                 )
@@ -590,13 +679,14 @@ def get_distinct_active_plan_prices() -> list[int]:
             r'[,،\s]+',
             setting.wallet_preset_amounts.strip(),
         )
-        custom_prices = sorted(
-            {
-                int(p)
-                for p in raw_parts
-                if p.isdigit() and int(p) > 0
-            }
-        )
+        custom_prices = []
+        seen = set()
+        for p in raw_parts:
+            if p.isdigit() and int(p) > 0:
+                val = int(p)
+                if val not in seen:
+                    seen.add(val)
+                    custom_prices.append(val)
         if custom_prices:
             return custom_prices
 
@@ -861,11 +951,8 @@ def claim_free_test_order(
             ],
         )
 
-        test_name = (
-            f"test_{telegram_id}"
-            if user.free_test_count <= 1
-            else f"test_{telegram_id}_{user.free_test_count}"
-        )
+        test_seq = user.free_test_count
+        test_name = f"test_{telegram_id}_{test_seq}"
         order = SubscriptionOrder.objects.create(
             user=user,
             order_type='free_test',
@@ -877,8 +964,9 @@ def claim_free_test_order(
     if bot_setting.free_test_template_id:
         success, sub_url, panel_username, _ = create_user_from_template(
             template_id=bot_setting.free_test_template_id,
-            base_username=test_name,
-            note=f"Free Test #{order.id} (Count: {user.free_test_count}) | TG: {telegram_id}",
+            base_username=f"test_{telegram_id}",
+            note=f"Free Test #{order.id} (Count: {test_seq}) | TG: {telegram_id}",
+            sequence_number=test_seq,
         )
         if success and sub_url:
             days = max(

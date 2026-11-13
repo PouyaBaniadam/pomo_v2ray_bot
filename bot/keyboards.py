@@ -269,6 +269,25 @@ def get_wallet_preset_amounts_kb(
     )
 
 
+def get_wallet_custom_amount_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                make_inline_btn(
+                    text="🔙 بازگشت به مبالغ",
+                    callback_data="back_to_wallet_amounts",
+                    style="primary",
+                ),
+                make_inline_btn(
+                    text="❌ انصراف",
+                    callback_data="cancel_wallet_flow",
+                    style="danger",
+                ),
+            ]
+        ]
+    )
+
+
 def get_invoice_cancel_kb(
     invoice_number: str,
     card_number: str,
@@ -614,6 +633,11 @@ def get_admin_panel_kb() -> InlineKeyboardMarkup:
                 ),
             ],
             [
+                make_inline_btn(
+                    text="🗄 دریافت بکاپ فوری",
+                    callback_data="adm_manual_backup",
+                    style="success",
+                ),
                 make_inline_btn(
                     text="🔄 بروزرسانی آمار",
                     callback_data="adm_refresh_stats",

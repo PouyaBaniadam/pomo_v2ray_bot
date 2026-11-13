@@ -24,6 +24,7 @@ from bot.handlers.buy import router as buy_router
 from bot.handlers.services import router as services_router
 from bot.handlers.gifts import router as gifts_router
 from bot.handlers.admin_panel import router as admin_panel_router
+from core.backup import backup_scheduler_loop
 from core.services import get_all_admin_ids
 
 
@@ -137,4 +138,13 @@ class Command(BaseCommand):
         await bot.delete_webhook(
             drop_pending_updates=True,
         )
-        await dp.start_polling(bot)
+
+        backup_task = asyncio.create_task(backup_scheduler_loop(bot))
+        try:
+            await dp.start_polling(bot)
+        finally:
+            backup_task.cancel()
+            try:
+                await backup_task
+            except asyncio.CancelledError:
+                pass

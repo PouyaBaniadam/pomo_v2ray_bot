@@ -193,8 +193,14 @@
     .mp-actions {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 12px;
         direction: rtl;
+    }
+    .mp-actions-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
     .mp-btn-primary {
         background-color: #9333ea;
@@ -224,6 +230,19 @@
     .mp-btn-secondary:hover {
         background-color: #1f2937;
     }
+    .mp-btn-danger {
+        background-color: #dc2626;
+        color: #ffffff;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 9px 18px;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+    }
+    .mp-btn-danger:hover {
+        background-color: #b91c1c;
+    }
 </style>
 
 <div class="mp-wrapper" dir="rtl">
@@ -233,7 +252,7 @@
         <div class="mp-card">
             <div class="mp-card-header">
                 <span>۱. مشخصات پلن فروش در ربات تلگرام</span>
-                <span class="mp-header-badge">تنظیمات فروشگاه</span>
+                <span class="mp-header-badge">{% if is_edit %}ویرایش پلن #{{ plan.id }}{% else %}تنظیمات فروشگاه{% endif %}</span>
             </div>
 
             <div class="mp-grid-2">
@@ -242,18 +261,18 @@
                         <label class="mp-label" for="id_plan_type">دسته‌بندی سرور</label>
                     </div>
                     <select name="plan_type" id="id_plan_type" class="mp-select mp-rtl-input" onchange="handlePlanTypeChange()">
-                        <option value="direct" selected>⚡ اشتراک دایرکت (Direct)</option>
-                        <option value="tunnel">🛡 اشتراک تانل (Tunnel)</option>
+                        <option value="direct" {% if not is_edit or plan.plan_type == 'direct' %}selected{% endif %}>⚡ اشتراک دایرکت (Direct)</option>
+                        <option value="tunnel" {% if is_edit and plan.plan_type == 'tunnel' %}selected{% endif %}>🛡 اشتراک تانل (Tunnel + Direct)</option>
                     </select>
-                    <div class="mp-hint">گروه سرور مربوطه در پاسارگارد به صورت خودکار انتخاب می‌شود.</div>
+                    <div class="mp-hint">برای دایرکت گروه Reis Group و برای تانل هر دو گروه (Reis Group + Reis tunnel) انتخاب می‌شود.</div>
                 </div>
 
                 <div class="mp-field">
                     <div class="mp-label-row">
                         <label class="mp-label" for="id_price">قیمت فروش (تومان)</label>
                     </div>
-                    <input type="number" name="price" id="id_price" class="mp-input mp-ltr-input" value="150000" min="0" step="1000" required oninput="syncSuggestedTexts()" />
-                    <div id="price_hint" class="mp-hint">معادل: ۱۵۰,۰۰۰ تومان</div>
+                    <input type="number" name="price" id="id_price" class="mp-input mp-ltr-input" value="{% if is_edit %}{{ plan.price }}{% else %}49000{% endif %}" min="0" step="1000" required oninput="syncSuggestedTexts()" />
+                    <div id="price_hint" class="mp-hint">معادل: ۴۹,۰۰۰ تومان</div>
                 </div>
             </div>
 
@@ -262,7 +281,7 @@
                     <div class="mp-label-row">
                         <label class="mp-label" for="id_volume_gb">حجم ترافیک (گیگابایت)</label>
                     </div>
-                    <input type="number" name="volume_gb" id="id_volume_gb" class="mp-input mp-ltr-input" value="30" min="0" required oninput="syncSuggestedTexts()" />
+                    <input type="number" name="volume_gb" id="id_volume_gb" class="mp-input mp-ltr-input" value="{% if is_edit %}{{ plan.volume_gb }}{% else %}10{% endif %}" min="0" required oninput="syncSuggestedTexts()" />
                     <div class="mp-hint">برای پلن نامحدود عدد 0 وارد کنید.</div>
                 </div>
 
@@ -271,32 +290,32 @@
                         <label class="mp-label" for="id_expire_value">مدت اعتبار اشتراک</label>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                        <input type="number" name="expire_value" id="id_expire_value" class="mp-input mp-ltr-input" value="30" min="1" required oninput="syncSuggestedTexts()" />
+                        <input type="number" name="expire_value" id="id_expire_value" class="mp-input mp-ltr-input" value="{% if is_edit %}{{ plan.duration_days }}{% else %}30{% endif %}" min="1" required oninput="syncSuggestedTexts()" />
                         <select name="expire_unit" id="id_expire_unit" class="mp-select mp-rtl-input" onchange="syncSuggestedTexts()">
                             <option value="days" selected>روز</option>
                             <option value="months">ماه (۳۰ روزه)</option>
                             <option value="hours">ساعت</option>
                         </select>
                     </div>
-                    <div class="mp-hint">مدت زمان اعتبار سرویس پس از فعال‌سازی.</div>
+                    <div class="mp-hint">مدت زمان اعتبار سرویس پس از اولین اتصال.</div>
                 </div>
             </div>
 
             <div class="mp-grid-2">
                 <div class="mp-field">
                     <div class="mp-label-row">
-                        <label class="mp-label" for="id_max_users">تعداد کاربر / دستگاه مجاز</label>
+                        <label class="mp-label" for="id_max_users">تعداد کاربر / دستگاه مجاز (0 = بدون محدودیت)</label>
                     </div>
-                    <input type="number" name="max_users" id="id_max_users" class="mp-input mp-ltr-input" value="1" min="1" required oninput="syncSuggestedTexts()" />
-                    <div class="mp-hint">در پلن‌های نامحدود، تعداد دستگاه مجاز روی قالب پاسارگارد اعمال می‌شود.</div>
+                    <input type="number" name="max_users" id="id_max_users" class="mp-input mp-ltr-input" value="{% if is_edit %}{{ plan.max_users }}{% else %}0{% endif %}" min="0" required oninput="syncSuggestedTexts()" />
+                    <div class="mp-hint">برای پلن‌های حجمی عدد 0 (بدون محدودیت کاربر) و برای نامحدودها 2 یا 3 بگذارید.</div>
                 </div>
 
                 <div class="mp-field">
                     <div class="mp-label-row">
                         <label class="mp-label" for="id_sort_order">ترتیب نمایش در ربات</label>
                     </div>
-                    <input type="number" name="sort_order" id="id_sort_order" class="mp-input mp-ltr-input" value="{{ next_direct_order|default:1 }}" data-next-direct="{{ next_direct_order|default:1 }}" data-next-tunnel="{{ next_tunnel_order|default:1 }}" min="1" required oninput="this.dataset.manual='1'" />
-                    <div class="mp-hint">به صورت خودکار روی آخرین ترتیب + ۱ تنظیم می‌شود (اعداد کوچک‌تر بالاتر قرار می‌گیرند).</div>
+                    <input type="number" name="sort_order" id="id_sort_order" class="mp-input mp-ltr-input" value="{% if is_edit %}{{ plan.sort_order }}{% else %}{{ next_direct_order|default:1 }}{% endif %}" data-next-direct="{{ next_direct_order|default:1 }}" data-next-tunnel="{{ next_tunnel_order|default:1 }}" {% if is_edit %}data-manual="1"{% endif %} min="1" required oninput="this.dataset.manual='1'" />
+                    <div class="mp-hint">به صورت خودکار روی آخرین ترتیب + ۱ تنظیم می‌شود.</div>
                 </div>
             </div>
 
@@ -304,16 +323,16 @@
                 <div class="mp-label-row">
                     <label class="mp-label" for="id_title">عنوان نمایشی روی دکمه تلگرام</label>
                 </div>
-                <input type="text" name="title" id="id_title" class="mp-input mp-rtl-input" required oninput="this.dataset.manual='1'; updateLivePreview();" />
+                <input type="text" name="title" id="id_title" class="mp-input mp-rtl-input" value="{% if is_edit %}{{ plan.title }}{% endif %}" {% if is_edit %}data-manual="1"{% endif %} required oninput="this.dataset.manual='1'; updateLivePreview();" />
                 <div class="mp-preview-box">
                     <span style="color: #9ca3af; font-size: 0.76rem;">پیش‌نمایش دکمه در ربات:</span>
-                    <strong id="btn_live_preview" style="color: #f3f4f6;">⚡ ۳۰ گیگ دایرکت - ۱ ماهه (۱۵۰,۰۰۰ تومان)</strong>
+                    <strong id="btn_live_preview" style="color: #f3f4f6;">{% if is_edit %}{{ plan.title }}{% else %}⚡ ۱۰ گیگ دایرکت - ۱ ماهه (۴۹,۰۰۰ تومان){% endif %}</strong>
                 </div>
             </div>
 
             <div class="mp-field">
                 <label class="mp-check-row">
-                    <input type="checkbox" name="is_active" checked />
+                    <input type="checkbox" name="is_active" {% if not is_edit or plan.is_active %}checked{% endif %} />
                     <span>این پلن بلافاصله پس از ذخیره در ربات تلگرام فعال و قابل خرید باشد</span>
                 </label>
             </div>
@@ -322,7 +341,7 @@
         <div class="mp-card">
             <div class="mp-card-header">
                 <span>۲. اتصال خودکار به پنل پاسارگارد</span>
-                <span class="mp-header-badge">User Template</span>
+                <span class="mp-header-badge">User Template {% if is_edit and plan.pasarguard_template_id %}(#{{ plan.pasarguard_template_id }}){% endif %}</span>
             </div>
 
             <div class="mp-field">
@@ -330,8 +349,8 @@
                     <label class="mp-label" for="id_template_mode">نحوه اتصال به قالب پاسارگارد</label>
                 </div>
                 <select name="template_mode" id="id_template_mode" class="mp-select mp-rtl-input" onchange="toggleTemplateMode()">
-                    <option value="create_new" selected>ساخت خودکار قالب جدید در پاسارگارد (پیشنهادی)</option>
-                    <option value="use_existing">انتخاب از قالب‌های موجود در پاسارگارد</option>
+                    <option value="create_new" selected>{% if is_edit %}بروزرسانی خودکار قالب متصل در پاسارگارد (پیشنهادی){% else %}ساخت خودکار قالب جدید در پاسارگارد (پیشنهادی){% endif %}</option>
+                    <option value="use_existing">انتخاب از سایر قالب‌های موجود در پاسارگارد</option>
                 </select>
             </div>
 
@@ -342,7 +361,7 @@
                 </div>
                 <select name="existing_template_id" id="id_existing_template_id" class="mp-select mp-ltr-input">
                     {% for tpl in templates_list %}
-                        <option value="{{ tpl.id }}">#{{ tpl.id }} — {{ tpl.name }} ({% if tpl.data_limit_gb > 0 %}{{ tpl.data_limit_gb }} GB{% else %}Unlimited{% endif %} | {{ tpl.expire_days }} Days)</option>
+                        <option value="{{ tpl.id }}" {% if is_edit and plan.pasarguard_template_id == tpl.id %}selected{% endif %}>#{{ tpl.id }} — {{ tpl.name }} ({% if tpl.data_limit_gb > 0 %}{{ tpl.data_limit_gb }} GB{% else %}Unlimited{% endif %} | {{ tpl.expire_days }} Days)</option>
                     {% empty %}
                         <option value="">قالبی در پاسارگارد یافت نشد</option>
                     {% endfor %}
@@ -357,7 +376,7 @@
                             <label class="mp-label" for="id_template_name">نام قالب در پاسارگارد</label>
                             <span class="mp-code-tag">name</span>
                         </div>
-                        <input type="text" name="template_name" id="id_template_name" class="mp-input mp-ltr-input" maxlength="64" required oninput="this.dataset.manual='1'" />
+                        <input type="text" name="template_name" id="id_template_name" class="mp-input mp-ltr-input" maxlength="64" value="{% if current_tpl %}{{ current_tpl.name }}{% endif %}" {% if current_tpl %}data-manual="1"{% endif %} required oninput="this.dataset.manual='1'" />
                         <div class="mp-hint">نام یکتا برای شناسایی قالب در بخش Templates پاسارگارد.</div>
                     </div>
 
@@ -367,8 +386,8 @@
                             <span class="mp-code-tag">status</span>
                         </div>
                         <select name="status" id="id_status" class="mp-select mp-rtl-input" onchange="toggleOnHoldField()">
-                            <option value="active" selected>فعال از لحظه خرید (Active)</option>
-                            <option value="on_hold">شروع زمان با اولین اتصال (On Hold)</option>
+                            <option value="on_hold" {% if not current_tpl or current_tpl.status == 'on_hold' %}selected{% endif %}>شروع زمان با اولین اتصال (On Hold)</option>
+                            <option value="active" {% if current_tpl and current_tpl.status == 'active' %}selected{% endif %}>فعال از لحظه خرید (Active)</option>
                         </select>
                         <div class="mp-hint">در حالت On Hold، زمان اعتبار از لحظه اولین اتصال کاربر محاسبه می‌شود.</div>
                     </div>
@@ -380,7 +399,6 @@
                         <span class="mp-code-tag">on_hold_timeout</span>
                     </div>
                     <input type="number" name="on_hold_timeout" id="id_on_hold_timeout" class="mp-input mp-ltr-input" value="86400" min="60" />
-                    <div class="mp-hint">اگر کاربر تا این زمان متصل نشود، اشتراک به صورت خودکار فعال می‌گردد (پیش‌فرض: 86400 ثانیه = ۲۴ ساعت).</div>
                 </div>
 
                 <div class="mp-field">
@@ -391,12 +409,12 @@
                     <div class="mp-groups-list">
                         {% for grp in groups_list %}
                             <label class="mp-check-row">
-                                <input type="checkbox" name="group_ids" value="{{ grp.id }}" class="pg-group-cb" data-gname="{{ grp.name|lower }}" />
+                                <input type="checkbox" name="group_ids" value="{{ grp.id }}" class="pg-group-cb" data-gname="{{ grp.name|lower }}" {% if current_tpl and grp.id in current_tpl.group_ids %}checked{% endif %} />
                                 <span dir="ltr">{{ grp.name }}</span>
                             </label>
                         {% endfor %}
                     </div>
-                    <div class="mp-hint">گروه سرورهایی که کاربران این پلن به نودهای آن‌ها دسترسی خواهند داشت.</div>
+                    <div class="mp-hint">در پلن‌های تانل، هر دو گروه دایرکت و تانل فعال می‌شوند.</div>
                 </div>
 
                 <details class="mp-details">
@@ -407,17 +425,17 @@
 
                     <div class="mp-details-body">
                         <div class="mp-info-banner">
-                            مقادیر پیش‌فرض این بخش برای تمامی پلن‌های استاندارد بهینه شده‌اند؛ تنها در صورتی که نیاز به محدودیت دستگاه خاص، تغییر الگوریتم Shadowsocks یا ریست ماهانه حجم دارید آن‌ها را تغییر دهید.
+                            مقدار HWID Limit روی 0 یعنی بدون محدودیت تعداد دستگاه (Unlimited). برای پلن‌های نامحدود ۲ و ۳ کاربره به صورت خودکار روی 2 و 3 قرار می‌گیرد.
                         </div>
 
                         <div class="mp-grid-2">
                             <div class="mp-field">
                                 <div class="mp-label-row">
-                                    <label class="mp-label" for="id_hwid_limit">محدودیت تعداد دستگاه همزمان</label>
+                                    <label class="mp-label" for="id_hwid_limit">محدودیت تعداد دستگاه همزمان (0 = نامحدود)</label>
                                     <span class="mp-code-tag">hwid_limit</span>
                                 </div>
-                                <input type="number" name="hwid_limit" id="id_hwid_limit" class="mp-input mp-ltr-input" min="0" placeholder="Default" />
-                                <div class="mp-hint">خالی = پیش‌فرض پنل | عدد 0 = نامحدود | عدد دلخواه = حداکثر دستگاه همزمان.</div>
+                                <input type="number" name="hwid_limit" id="id_hwid_limit" class="mp-input mp-ltr-input" min="0" value="{% if current_tpl %}{{ current_tpl.hwid_limit }}{% else %}0{% endif %}" placeholder="0 = unlimited" />
+                                <div class="mp-hint">عدد 0 = بدون محدودیت دستگاه | عدد 2 یا 3 = محدودیت برای پلن‌های نامحدود.</div>
                             </div>
 
                             <div class="mp-field">
@@ -426,12 +444,11 @@
                                     <span class="mp-code-tag">method</span>
                                 </div>
                                 <select name="method" id="id_method" class="mp-select mp-rtl-input">
-                                    <option value="chacha20-ietf-poly1305" selected>chacha20-ietf-poly1305 (پیشنهادی و سبک برای موبایل)</option>
-                                    <option value="xchacha20-poly1305">xchacha20-poly1305 (نسخه ارتقایافته موبایل)</option>
-                                    <option value="aes-128-gcm">aes-128-gcm (سریع در کامپیوتر و پردازنده‌های جدید)</option>
-                                    <option value="aes-256-gcm">aes-256-gcm (بالاترین سطح امنیت رمزنگاری)</option>
+                                    <option value="chacha20-ietf-poly1305" {% if not current_tpl or current_tpl.method == 'chacha20-ietf-poly1305' %}selected{% endif %}>chacha20-ietf-poly1305 (پیشنهادی و سبک برای موبایل)</option>
+                                    <option value="xchacha20-poly1305" {% if current_tpl and current_tpl.method == 'xchacha20-poly1305' %}selected{% endif %}>xchacha20-poly1305 (نسخه ارتقایافته موبایل)</option>
+                                    <option value="aes-128-gcm" {% if current_tpl and current_tpl.method == 'aes-128-gcm' %}selected{% endif %}>aes-128-gcm (سریع در کامپیوتر و پردازنده‌های جدید)</option>
+                                    <option value="aes-256-gcm" {% if current_tpl and current_tpl.method == 'aes-256-gcm' %}selected{% endif %}>aes-256-gcm (بالاترین سطح امنیت رمزنگاری)</option>
                                 </select>
-                                <div class="mp-hint">فقط روی پروتکل Shadowsocks اعمال می‌شود و تاثیری روی VLESS یا VMess ندارد.</div>
                             </div>
                         </div>
 
@@ -441,8 +458,7 @@
                                     <label class="mp-label" for="id_username_prefix">پیشوند نام کاربری</label>
                                     <span class="mp-code-tag">username_prefix</span>
                                 </div>
-                                <input type="text" name="username_prefix" id="id_username_prefix" class="mp-input mp-ltr-input" maxlength="20" placeholder="مثال: vip_" />
-                                <div class="mp-hint">عبارتی که به ابتدای نام سرویس در پاسارگارد اضافه می‌شود (مثلاً vip_ali).</div>
+                                <input type="text" name="username_prefix" id="id_username_prefix" class="mp-input mp-ltr-input" maxlength="20" value="{% if current_tpl %}{{ current_tpl.username_prefix }}{% endif %}" placeholder="مثال: vip_" />
                             </div>
 
                             <div class="mp-field">
@@ -450,29 +466,13 @@
                                     <label class="mp-label" for="id_username_suffix">پسوند نام کاربری</label>
                                     <span class="mp-code-tag">username_suffix</span>
                                 </div>
-                                <input type="text" name="username_suffix" id="id_username_suffix" class="mp-input mp-ltr-input" maxlength="20" placeholder="مثال: _dir" />
-                                <div class="mp-hint">عبارتی که به انتهای نام سرویس در پاسارگارد اضافه می‌شود (مثلاً ali_dir).</div>
+                                <input type="text" name="username_suffix" id="id_username_suffix" class="mp-input mp-ltr-input" maxlength="20" value="{% if current_tpl %}{{ current_tpl.username_suffix }}{% endif %}" placeholder="مثال: _dir" />
                             </div>
-                        </div>
-
-                        <div class="mp-field">
-                            <div class="mp-label-row">
-                                <label class="mp-label" for="id_reset_strategy">استراتژی بازنشانی دوره‌ای حجم</label>
-                                <span class="mp-code-tag">data_limit_reset_strategy</span>
-                            </div>
-                            <select name="data_limit_reset_strategy" id="id_reset_strategy" class="mp-select mp-rtl-input">
-                                <option value="no_reset" selected>بدون ریست دوره‌ای — مصرف کل حجم در طول دوره (no_reset)</option>
-                                <option value="day">ریست روزانه — صفر شدن مصرف هر ۲۴ ساعت (day)</option>
-                                <option value="week">ریست هفتگی — صفر شدن مصرف هر ۷ روز (week)</option>
-                                <option value="month">ریست ماهانه — مناسب پلن‌های چندماهه (month)</option>
-                                <option value="year">ریست سالانه — صفر شدن مصرف هر ۳۶۵ روز (year)</option>
-                            </select>
-                            <div class="mp-hint">برای پلن‌های چندماهه با حجم ماهانه (مثلاً ۳ ماهه، ماهی ۵۰ گیگ)، گزینه ریست ماهانه را انتخاب کنید.</div>
                         </div>
 
                         <div class="mp-field">
                             <label class="mp-check-row">
-                                <input type="checkbox" name="reset_usages" value="1" />
+                                <input type="checkbox" name="reset_usages" value="1" {% if current_tpl and current_tpl.reset_usages %}checked{% endif %} />
                                 <span>صفر کردن ترافیک مصرف‌شده قبلی هنگام اعمال مجدد قالب روی کاربر فعلی <span class="mp-code-tag">reset_usages</span></span>
                             </label>
                         </div>
@@ -482,36 +482,38 @@
         </div>
 
         <div class="mp-actions">
-            <button type="submit" class="mp-btn-primary">
-                ذخیره و ساخت پلن
-            </button>
-            <a href="{{ cancel_url }}" class="mp-btn-secondary">
-                انصراف و بازگشت
-            </a>
+            <div class="mp-actions-right">
+                <button type="submit" class="mp-btn-primary">
+                    {% if is_edit %}ذخیره تغییرات پلن{% else %}ذخیره و ساخت پلن{% endif %}
+                </button>
+                <a href="{{ cancel_url }}" class="mp-btn-secondary">
+                    انصراف و بازگشت
+                </a>
+            </div>
+            {% if is_edit and delete_url %}
+                <a href="{{ delete_url }}" class="mp-btn-danger">
+                    حذف پلن فروش
+                </a>
+            {% endif %}
         </div>
     </form>
 </div>
 
 <script>
+    const IS_EDIT_MODE = {{ is_edit|yesno:"true,false" }};
+    const HAS_SAVED_GROUPS = {% if current_tpl and current_tpl.group_ids %}true{% else %}false{% endif %};
+
     function toPersianDigits(val) {
         const map = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
         return String(val).replace(/[0-9]/g, w => map[+w]);
     }
 
-    function handlePlanTypeChange() {
-        const pType = document.getElementById('id_plan_type').value;
-        const sortInput = document.getElementById('id_sort_order');
-        if (sortInput && !sortInput.dataset.manual) {
-            sortInput.value = (pType === 'tunnel')
-                ? sortInput.getAttribute('data-next-tunnel')
-                : sortInput.getAttribute('data-next-direct');
-        }
-
+    function selectGroupsByPlanType(pType) {
         const boxes = document.querySelectorAll('.pg-group-cb');
         let matched = false;
         boxes.forEach(cb => {
             const gname = cb.getAttribute('data-gname') || '';
-            if (pType === 'tunnel' && gname.includes('tunnel')) {
+            if (pType === 'tunnel') {
                 cb.checked = true;
                 matched = true;
             } else if (pType === 'direct' && !gname.includes('tunnel')) {
@@ -524,6 +526,17 @@
         if (!matched && boxes.length > 0) {
             boxes[0].checked = true;
         }
+    }
+
+    function handlePlanTypeChange() {
+        const pType = document.getElementById('id_plan_type').value;
+        const sortInput = document.getElementById('id_sort_order');
+        if (sortInput && !sortInput.dataset.manual) {
+            sortInput.value = (pType === 'tunnel')
+                ? sortInput.getAttribute('data-next-tunnel')
+                : sortInput.getAttribute('data-next-direct');
+        }
+        selectGroupsByPlanType(pType);
         syncSuggestedTexts();
     }
 
@@ -537,7 +550,7 @@
 
     function toggleOnHoldField() {
         const st = document.getElementById('id_status').value;
-        document.getElementById('on_hold_box').style.display = (st === 'on_hold') ? 'block' : 'none';
+        document.getElementById('on_hold_box').style.display = 'none';
     }
 
     function updateLivePreview() {
@@ -551,7 +564,7 @@
     function syncSuggestedTexts() {
         const pType = document.getElementById('id_plan_type').value;
         const vol = parseInt(document.getElementById('id_volume_gb').value || '0', 10);
-        const maxUsers = parseInt(document.getElementById('id_max_users').value || '1', 10);
+        const maxUsers = parseInt(document.getElementById('id_max_users').value || '0', 10);
         const expVal = parseInt(document.getElementById('id_expire_value').value || '30', 10);
         const expUnit = document.getElementById('id_expire_unit').value;
         const price = parseInt(document.getElementById('id_price').value || '0', 10);
@@ -560,10 +573,12 @@
         document.getElementById('price_hint').innerText = 'معادل: ' + formattedPrice + ' تومان';
 
         const hwidInput = document.getElementById('id_hwid_limit');
-        if (vol === 0 || maxUsers > 1) {
-            hwidInput.value = maxUsers;
-        } else {
-            hwidInput.value = '';
+        if (!IS_EDIT_MODE) {
+            if (vol === 0 && maxUsers > 0) {
+                hwidInput.value = maxUsers;
+            } else {
+                hwidInput.value = 0;
+            }
         }
 
         const tplInput = document.getElementById('id_template_name');
@@ -572,7 +587,7 @@
             const unitShort = {days: 'D', months: 'M', hours: 'H'}[expUnit] || 'D';
             tplInput.value = (vol > 0)
                 ? `${typeEn} ${vol}GB ${expVal}${unitShort}`
-                : `${typeEn} Unlim ${maxUsers}U`;
+                : `${typeEn} Unlim ${maxUsers || 2}U`;
         }
 
         const titleInput = document.getElementById('id_title');
@@ -591,14 +606,18 @@
                 const icon = (pType === 'direct') ? '⚡' : '🛡';
                 titleInput.value = `${icon} ${toPersianDigits(vol)} گیگ ${typeFa} - ${durFa} (${formattedPrice} تومان)`;
             } else {
-                titleInput.value = `♾ نامحدود ${typeFa} ${durFa} - ${toPersianDigits(maxUsers)} کاربره (${formattedPrice} تومان)`;
+                const uCount = maxUsers > 0 ? maxUsers : 2;
+                titleInput.value = `♾ نامحدود ${typeFa} ${durFa} - ${toPersianDigits(uCount)} کاربره (${formattedPrice} تومان)`;
             }
         }
         updateLivePreview();
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        handlePlanTypeChange();
+        if (!HAS_SAVED_GROUPS) {
+            selectGroupsByPlanType(document.getElementById('id_plan_type').value);
+        }
+        syncSuggestedTexts();
     });
 </script>
 {% endblock %}

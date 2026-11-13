@@ -4,7 +4,10 @@ from aiogram import (
     F,
     Bot,
 )
-from aiogram.filters import Command
+from aiogram.filters import (
+    Command,
+    StateFilter,
+)
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -20,6 +23,7 @@ from bot.keyboards import (
     get_cancel_reply_keyboard,
     get_main_menu_keyboard,
 )
+from core.backup import send_backup_to_admins
 from core.jalali import (
     format_jalali,
     now_jalali_str,
@@ -64,6 +68,7 @@ async def render_admin_dashboard_text() -> str:
 
 
 @router.message(
+    StateFilter("*"),
     Command("admin"),
 )
 async def cmd_admin_panel(
@@ -103,6 +108,26 @@ async def refresh_admin_stats(
     except Exception:
         pass
     await callback.answer("✅ آمار بروزرسانی شد")
+
+
+@router.callback_query(
+    F.data == "adm_manual_backup",
+)
+async def manual_backup_callback(
+    callback: CallbackQuery,
+    bot: Bot,
+):
+    if not await is_admin(callback.from_user.id):
+        await callback.answer(
+            "⛔️ عدم دسترسی",
+            show_alert=True,
+        )
+        return
+
+    await callback.answer("⏳ در حال تهیه بکاپ کامل و ارسال به ادمین‌ها...")
+    ok, result_msg = await send_backup_to_admins(bot)
+    if not ok:
+        await callback.message.answer(f"❌ {result_msg}")
 
 
 @router.callback_query(
