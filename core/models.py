@@ -51,6 +51,10 @@ class TelegramUser(models.Model):
         default=False,
         verbose_name="تست رایگان دریافت شده؟",
     )
+    free_test_count = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name="تعداد دفعات استفاده از تست",
+    )
     is_admin = models.BooleanField(
         default=False,
         verbose_name="ادمین ربات؟",

@@ -57,12 +57,12 @@ def build_service_actions_reply_markup_sync(
                     {
                         "text": "📋 کپی لینک کانفیگ",
                         "copy_text": {"text": clean_link},
-                        "style": "blue",
+                        "style": "primary",
                     },
                     {
                         "text": "📷 دریافت QR Code",
                         "callback_data": f"get_qr:{order_id}",
-                        "style": "green",
+                        "style": "success",
                     },
                 ]
             ]
@@ -73,7 +73,7 @@ def build_service_actions_reply_markup_sync(
                 {
                     "text": "📷 دریافت QR Code",
                     "callback_data": f"get_qr:{order_id}",
-                    "style": "green",
+                    "style": "success",
                 }
             ]
         ]
@@ -394,7 +394,7 @@ def upsert_telegram_user(
             send_telegram_message_sync(
                 referrer.telegram_id,
                 f"🎉 <b>تبریک! شما به {referrer.valid_referrals_count} دعوت موفق رسیدید!</b>\n\n"
-                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> برای شما فعال شد!\n"
+                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> به صورت آنی برای شما فعال شد!\n"
                 f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n\n"
                 f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
                 f"<code>{gift_order.config_link}</code>\n\n"
@@ -853,11 +853,19 @@ def claim_free_test_order(
             )
 
         user.used_free_test = True
+        user.free_test_count += 1
         user.save(
-            update_fields=['used_free_test'],
+            update_fields=[
+                'used_free_test',
+                'free_test_count',
+            ],
         )
 
-        test_name = f"test_{telegram_id}"
+        test_name = (
+            f"test_{telegram_id}"
+            if user.free_test_count <= 1
+            else f"test_{telegram_id}_{user.free_test_count}"
+        )
         order = SubscriptionOrder.objects.create(
             user=user,
             order_type='free_test',
@@ -870,7 +878,7 @@ def claim_free_test_order(
         success, sub_url, panel_username, _ = create_user_from_template(
             template_id=bot_setting.free_test_template_id,
             base_username=test_name,
-            note=f"Free Test #{order.id} | TG: {telegram_id}",
+            note=f"Free Test #{order.id} (Count: {user.free_test_count}) | TG: {telegram_id}",
         )
         if success and sub_url:
             days = max(

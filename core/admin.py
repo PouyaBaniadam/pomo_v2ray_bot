@@ -6,9 +6,12 @@ from django.contrib import (
     admin,
     messages,
 )
+from django.shortcuts import redirect
+from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
+from unfold.decorators import action
 from core.jalali import format_jalali
 from core.models import (
     TelegramUser,
@@ -38,6 +41,7 @@ class TelegramUserAdmin(ModelAdmin):
         'formatted_balance',
         'is_admin',
         'used_free_test',
+        'free_test_count',
         'valid_referrals_count',
         'referral_gifts_received',
         'is_banned',
@@ -56,10 +60,12 @@ class TelegramUserAdmin(ModelAdmin):
     )
     list_editable = (
         'is_admin',
+        'used_free_test',
         'is_banned',
     )
     readonly_fields = (
         'telegram_id',
+        'free_test_count',
         'jalali_created_at',
         'jalali_updated_at',
     )
@@ -67,6 +73,50 @@ class TelegramUserAdmin(ModelAdmin):
         'created_at',
         'updated_at',
     )
+    actions = [
+        'reset_selected_users_free_test',
+    ]
+    actions_list = [
+        'reset_all_users_free_test_action',
+    ]
+
+    @action(
+        description="🎁 ریست و فعال‌سازی تست برای همه کاربران",
+        url_path="reset-all-free-tests",
+    )
+    def reset_all_users_free_test_action(
+            self,
+            request,
+    ):
+        updated_count = TelegramUser.objects.filter(
+            used_free_test=True,
+        ).update(
+            used_free_test=False,
+        )
+        BotSetting.objects.filter(id=1).update(
+            free_test_enabled=True,
+        )
+        self.message_user(
+            request,
+            f"✅ تست رایگان برای همه کاربران فعال شد ({updated_count} کاربر ریست شدند و تاریخچه تعداد استفاده محفوظ ماند).",
+            level=messages.SUCCESS,
+        )
+        return redirect(reverse_lazy("admin:core_telegramuser_changelist"))
+
+    @admin.action(description="🎁 فعال‌سازی مجدد تست رایگان برای کاربران انتخاب شده")
+    def reset_selected_users_free_test(
+            self,
+            request,
+            queryset,
+    ):
+        updated_count = queryset.update(
+            used_free_test=False,
+        )
+        self.message_user(
+            request,
+            f"✅ تست رایگان برای {updated_count} کاربر انتخاب شده مجدداً فعال شد.",
+            level=messages.SUCCESS,
+        )
 
     @admin.display(description="موجودی کیف پول")
     def formatted_balance(
@@ -224,7 +274,7 @@ class TransactionAdmin(ModelAdmin):
                 )
                 send_telegram_message_sync(
                     tx.user.telegram_id,
-                    f"🎉 <b>پرداخت شما تایید شد و سرویس شما فعال گردید!</b>\n\n"
+                    f"🎉 <b>پرداخت شما تایید شد و سرویس شما به صورت آنی فعال گردید!</b>\n\n"
                     f"🏷 نام سرویس: <code>{auto_order.custom_name}</code>\n"
                     f"📦 بسته: {auto_order.plan.title}\n"
                     f"⏳ تاریخ انقضا: <b>{exp_str}</b>\n"
@@ -558,6 +608,59 @@ class RequiredChannelAdmin(ModelAdmin):
 
 @admin.register(BotSetting)
 class BotSettingAdmin(ModelAdmin):
+    actions_list = [
+        'reset_all_free_tests_from_settings',
+    ]
+    actions_detail = [
+        'reset_all_free_tests_detail',
+    ]
+
+    def _perform_global_free_test_reset(
+            self,
+            request,
+    ):
+        updated_count = TelegramUser.objects.filter(
+            used_free_test=True,
+        ).update(
+            used_free_test=False,
+        )
+        BotSetting.objects.filter(id=1).update(
+            free_test_enabled=True,
+        )
+        self.message_user(
+            request,
+            f"✅ تست رایگان برای همه کاربران فعال شد ({updated_count} کاربر ریست شدند و تاریخچه تعداد استفاده محفوظ ماند).",
+            level=messages.SUCCESS,
+        )
+
+    @action(
+        description="🎁 ریست و فعال‌سازی تست برای همه",
+        url_path="reset-all-free-tests-settings",
+    )
+    def reset_all_free_tests_from_settings(
+            self,
+            request,
+    ):
+        self._perform_global_free_test_reset(request)
+        return redirect(reverse_lazy("admin:core_botsetting_changelist"))
+
+    @action(
+        description="🎁 ریست و فعال‌سازی تست برای همه",
+        url_path="reset-all-free-tests-detail",
+    )
+    def reset_all_free_tests_detail(
+            self,
+            request,
+            object_id,
+    ):
+        self._perform_global_free_test_reset(request)
+        return redirect(
+            reverse_lazy(
+                "admin:core_botsetting_change",
+                args=[object_id],
+            )
+        )
+
     def has_add_permission(
             self,
             request,
