@@ -6,11 +6,10 @@ from django.contrib import (
     admin,
     messages,
 )
-from django.http import HttpResponse
-from django.shortcuts import redirect
-from django.template import (
-    RequestContext,
-    Template,
+from django.db.models import Max
+from django.shortcuts import (
+    redirect,
+    render,
 )
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -34,45 +33,20 @@ from core.services import (
     approve_transaction_sync,
     get_all_active_user_ids_sync,
 )
-from core.pasarguard import create_user_from_template
-
-
-CONFIRM_RESET_TEMPLATE = """
-{% extends "admin/base_site.html" %}
-
-{% block content %}
-<div style="max-width: 560px; margin: 40px auto; padding: 28px; border-radius: 14px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.06);">
-    <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 14px; color: #ef4444;">
-        ⚠️ تاییدیه فعال‌سازی مجدد تست رایگان برای همه کاربران
-    </h2>
-    <p style="line-height: 1.9; margin-bottom: 12px;">
-        آیا از انجام این عملیات اطمینان دارید؟ با تایید این مرحله:
-    </p>
-    <ul style="line-height: 1.9; margin-bottom: 20px; padding-right: 20px; list-style-type: disc;">
-        <li>وضعیت دریافت تست رایگان برای <strong>{{ affected_count }} کاربر</strong> (از مجموع {{ total_count }} کاربر) ریست می‌شود.</li>
-        <li>دکمه «🎁 دریافت تست رایگان» مجدداً در منوی اصلی ربات برای همه فعال خواهد شد.</li>
-        <li>تاریخچه تعداد دفعات استفاده قبلی کاربران همچنان محفوظ می‌ماند.</li>
-    </ul>
-    <form method="post" style="display: flex; gap: 12px; align-items: center;">
-        {% csrf_token %}
-        <input type="hidden" name="confirm" value="yes" />
-        <button type="submit" style="background-color: #16a34a; color: #ffffff; padding: 10px 20px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer;">
-            ✅ بله، مطمئنم و برای همه فعال شود
-        </button>
-        <a href="{{ cancel_url }}" style="background-color: #4b5563; color: #ffffff; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none;">
-            🔙 انصراف و بازگشت
-        </a>
-    </form>
-</div>
-{% endblock %}
-"""
+from core.pasarguard import (
+    create_user_from_template,
+    fetch_pasarguard_templates_list,
+    fetch_pasarguard_groups,
+    resolve_default_group_ids_for_plan_type,
+    create_or_update_user_template,
+)
 
 
 def render_free_test_reset_confirmation(
     model_admin,
     request,
     cancel_url: str,
-) -> HttpResponse:
+):
     affected_count = TelegramUser.objects.filter(
         used_free_test=True,
     ).count()
@@ -84,13 +58,11 @@ def render_free_test_reset_confirmation(
         "total_count": total_count,
         "cancel_url": cancel_url,
     }
-    html = Template(CONFIRM_RESET_TEMPLATE).render(
-        RequestContext(
-            request,
-            context,
-        )
+    return render(
+        request,
+        "admin/core/confirm_reset_free_test.html",
+        context,
     )
-    return HttpResponse(html)
 
 
 def execute_global_free_test_reset(
@@ -107,7 +79,7 @@ def execute_global_free_test_reset(
     )
     model_admin.message_user(
         request,
-        f"✅ تست رایگان برای همه کاربران فعال شد ({updated_count} کاربر ریست شدند).",
+        f"تست رایگان برای همه کاربران فعال شد ({updated_count} کاربر ریست شدند).",
         level=messages.SUCCESS,
     )
 
@@ -161,7 +133,7 @@ class TelegramUserAdmin(ModelAdmin):
     ]
 
     @action(
-        description="🎁 ریست و فعال‌سازی تست برای همه کاربران",
+        description="ریست و فعال‌سازی تست برای همه کاربران",
         url_path="reset-all-free-tests",
     )
     def reset_all_users_free_test_action(
@@ -181,7 +153,7 @@ class TelegramUserAdmin(ModelAdmin):
             cancel_url,
         )
 
-    @admin.action(description="🎁 فعال‌سازی مجدد تست رایگان برای کاربران انتخاب شده")
+    @admin.action(description="فعال‌سازی مجدد تست رایگان برای کاربران انتخاب شده")
     def reset_selected_users_free_test(
             self,
             request,
@@ -192,7 +164,7 @@ class TelegramUserAdmin(ModelAdmin):
         )
         self.message_user(
             request,
-            f"✅ تست رایگان برای {updated_count} کاربر انتخاب شده مجدداً فعال شد.",
+            f"تست رایگان برای {updated_count} کاربر انتخاب شده مجدداً فعال شد.",
             level=messages.SUCCESS,
         )
 
@@ -249,6 +221,9 @@ class PlanAdmin(ModelAdmin):
         'sort_order',
     )
     search_fields = ('title',)
+    actions_list = [
+        'sync_all_plans_to_pasarguard',
+    ]
 
     @admin.display(description="قیمت")
     def formatted_price(
@@ -256,6 +231,176 @@ class PlanAdmin(ModelAdmin):
             obj,
     ):
         return f"{obj.price:,} تومان"
+
+    def add_view(
+            self,
+            request,
+            form_url="",
+            extra_context=None,
+    ):
+        changelist_url = str(reverse_lazy("admin:core_plan_changelist"))
+
+        if request.method == "POST":
+            plan_type = request.POST.get("plan_type", "direct")
+            title = (request.POST.get("title") or "").strip()
+            volume_gb = max(0, int(request.POST.get("volume_gb") or 0))
+            max_users = max(1, int(request.POST.get("max_users") or 1))
+            price = max(0, int(request.POST.get("price") or 0))
+            sort_order = max(1, int(request.POST.get("sort_order") or 1))
+            is_active = bool(request.POST.get("is_active"))
+
+            exp_val = max(1, int(request.POST.get("expire_value") or 30))
+            exp_unit = request.POST.get("expire_unit", "days")
+            unit_to_seconds = {
+                "hours": 3600,
+                "days": 86400,
+                "months": 2592000,
+            }
+            expire_seconds = exp_val * unit_to_seconds.get(exp_unit, 86400)
+            duration_days = max(1, round(expire_seconds / 86400))
+
+            template_mode = request.POST.get("template_mode", "create_new")
+            resolved_tpl_id = None
+
+            if template_mode == "use_existing":
+                raw_tpl_id = request.POST.get("existing_template_id")
+                if raw_tpl_id and str(raw_tpl_id).isdigit():
+                    resolved_tpl_id = int(raw_tpl_id)
+            else:
+                tpl_name = (request.POST.get("template_name") or title).strip()
+                group_ids = [
+                    int(gid)
+                    for gid in request.POST.getlist("group_ids")
+                    if str(gid).isdigit()
+                ]
+                if not group_ids:
+                    group_ids = resolve_default_group_ids_for_plan_type(plan_type)
+
+                status = request.POST.get("status", "active")
+                on_hold_timeout = int(request.POST.get("on_hold_timeout") or 86400)
+                method = request.POST.get("method", "chacha20-ietf-poly1305")
+                raw_hwid = (request.POST.get("hwid_limit") or "").strip()
+                hwid_limit = int(raw_hwid) if raw_hwid != "" else None
+                username_prefix = request.POST.get("username_prefix")
+                username_suffix = request.POST.get("username_suffix")
+                reset_strategy = request.POST.get("data_limit_reset_strategy", "no_reset")
+                reset_usages = bool(request.POST.get("reset_usages"))
+
+                ok, created_tpl_id, err = create_or_update_user_template(
+                    name=tpl_name,
+                    group_ids=group_ids,
+                    data_limit_bytes=volume_gb * 1073741824,
+                    expire_duration_seconds=expire_seconds,
+                    status=status,
+                    on_hold_timeout_seconds=on_hold_timeout,
+                    data_limit_reset_strategy=reset_strategy,
+                    reset_usages=reset_usages,
+                    hwid_limit=hwid_limit,
+                    username_prefix=username_prefix,
+                    username_suffix=username_suffix,
+                    method=method,
+                )
+                if not ok:
+                    self.message_user(
+                        request,
+                        f"خطا در ساخت قالب پاسارگارد: {err}",
+                        level=messages.ERROR,
+                    )
+                    return redirect(request.path)
+                resolved_tpl_id = created_tpl_id
+
+            plan = Plan.objects.create(
+                plan_type=plan_type,
+                title=title,
+                pasarguard_template_id=resolved_tpl_id,
+                volume_gb=volume_gb,
+                duration_days=duration_days,
+                max_users=max_users,
+                price=price,
+                is_active=is_active,
+                sort_order=sort_order,
+            )
+            self.message_user(
+                request,
+                f"پلن «{plan.title}» با موفقیت ساخته شد (Template ID: #{resolved_tpl_id}).",
+                level=messages.SUCCESS,
+            )
+            return redirect(changelist_url)
+
+        raw_templates = fetch_pasarguard_templates_list()
+        formatted_templates = []
+        for t in raw_templates:
+            d_bytes = int(t.get("data_limit") or 0)
+            exp_sec = int(t.get("expire_duration") or 0)
+            formatted_templates.append(
+                {
+                    "id": t["id"],
+                    "name": t["name"],
+                    "data_limit_gb": round(d_bytes / 1073741824, 2) if d_bytes > 0 else 0,
+                    "expire_days": round(exp_sec / 86400, 1) if exp_sec > 0 else 0,
+                }
+            )
+
+        direct_max = (
+            Plan.objects.filter(plan_type="direct").aggregate(m=Max("sort_order"))["m"] or 0
+        )
+        tunnel_max = (
+            Plan.objects.filter(plan_type="tunnel").aggregate(m=Max("sort_order"))["m"] or 0
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "افزودن پلن فروش",
+            "templates_list": formatted_templates,
+            "groups_list": fetch_pasarguard_groups(),
+            "next_direct_order": direct_max + 1,
+            "next_tunnel_order": tunnel_max + 1,
+            "cancel_url": changelist_url,
+        }
+        return render(
+            request,
+            "admin/core/plan/add_plan.html",
+            context,
+        )
+
+    @action(
+        description="همگام‌سازی پلن‌ها با پاسارگارد",
+        url_path="sync-plans-pasarguard",
+    )
+    def sync_all_plans_to_pasarguard(
+            self,
+            request,
+    ):
+        synced = 0
+        for plan in Plan.objects.all():
+            type_prefix = "Direct" if plan.plan_type == "direct" else "Tunnel"
+            tpl_name = (
+                f"{type_prefix} {plan.volume_gb}GB {plan.duration_days}D"
+                if plan.volume_gb > 0
+                else f"{type_prefix} Unlim {plan.max_users}U"
+            )
+            group_ids = resolve_default_group_ids_for_plan_type(plan.plan_type)
+            hwid = plan.max_users if (plan.volume_gb == 0 or plan.max_users > 1) else None
+            ok, tpl_id, _ = create_or_update_user_template(
+                name=tpl_name,
+                group_ids=group_ids,
+                data_limit_bytes=plan.volume_gb * 1073741824,
+                expire_duration_seconds=plan.duration_days * 86400,
+                hwid_limit=hwid,
+                template_id=plan.pasarguard_template_id,
+            )
+            if ok and tpl_id:
+                if plan.pasarguard_template_id != tpl_id:
+                    plan.pasarguard_template_id = tpl_id
+                    plan.save(update_fields=['pasarguard_template_id'])
+                synced += 1
+
+        self.message_user(
+            request,
+            f"{synced} پلن با پاسارگارد همگام‌سازی شد.",
+            level=messages.SUCCESS,
+        )
+        return redirect(reverse_lazy("admin:core_plan_changelist"))
 
 
 @admin.register(Transaction)
@@ -694,7 +839,7 @@ class BotSettingAdmin(ModelAdmin):
     ]
 
     @action(
-        description="🎁 ریست و فعال‌سازی تست برای همه",
+        description="ریست و فعال‌سازی تست برای همه",
         url_path="reset-all-free-tests-settings",
     )
     def reset_all_free_tests_from_settings(
@@ -715,7 +860,7 @@ class BotSettingAdmin(ModelAdmin):
         )
 
     @action(
-        description="🎁 ریست و فعال‌سازی تست برای همه",
+        description="ریست و فعال‌سازی تست برای همه",
         url_path="reset-all-free-tests-detail",
     )
     def reset_all_free_tests_detail(

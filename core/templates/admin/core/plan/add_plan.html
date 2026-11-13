@@ -1,0 +1,604 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<style>
+    .mp-wrapper {
+        max-width: 820px;
+        margin: 16px auto 48px;
+        direction: rtl;
+        text-align: right;
+        font-family: inherit;
+    }
+    .mp-card {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 20px;
+        direction: rtl;
+        text-align: right;
+    }
+    .mp-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #f3f4f6;
+        padding-bottom: 14px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #1f2937;
+    }
+    .mp-header-badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #9ca3af;
+        background-color: #1f2937;
+        padding: 3px 10px;
+        border-radius: 999px;
+    }
+    .mp-grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        direction: rtl;
+    }
+    @media (max-width: 680px) {
+        .mp-grid-2 {
+            grid-template-columns: 1fr;
+        }
+    }
+    .mp-field {
+        margin-bottom: 18px;
+        direction: rtl;
+        text-align: right;
+    }
+    .mp-field:last-child {
+        margin-bottom: 0;
+    }
+    .mp-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .mp-label {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #e5e7eb;
+    }
+    .mp-code-tag {
+        font-size: 0.72rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        color: #9ca3af;
+        background-color: #0f172a;
+        border: 1px solid #1f2937;
+        padding: 1px 7px;
+        border-radius: 5px;
+        direction: ltr;
+    }
+    .mp-input,
+    .mp-select {
+        width: 100%;
+        height: 40px;
+        padding: 0 12px;
+        font-size: 0.875rem;
+        color: #f9fafb;
+        background-color: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .mp-input:focus,
+    .mp-select:focus {
+        outline: none;
+        border-color: #9333ea;
+        box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.2);
+    }
+    .mp-rtl-input {
+        direction: rtl;
+        text-align: right;
+    }
+    .mp-ltr-input {
+        direction: ltr;
+        text-align: left;
+    }
+    .mp-hint {
+        font-size: 0.76rem;
+        line-height: 1.65;
+        color: #9ca3af;
+        margin-top: 5px;
+        direction: rtl;
+        text-align: right;
+    }
+    .mp-preview-box {
+        margin-top: 8px;
+        padding: 9px 12px;
+        border-radius: 8px;
+        background-color: #0f172a;
+        border: 1px dashed #374151;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 0.82rem;
+        color: #d1d5db;
+    }
+    .mp-groups-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        padding: 10px 14px;
+        background-color: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        direction: rtl;
+    }
+    .mp-check-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: #e5e7eb;
+        cursor: pointer;
+        direction: rtl;
+    }
+    .mp-check-row input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #9333ea;
+        cursor: pointer;
+        margin: 0;
+    }
+    .mp-details {
+        margin-top: 18px;
+        border-top: 1px solid #1f2937;
+        padding-top: 16px;
+        direction: rtl;
+        text-align: right;
+    }
+    .mp-details summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.86rem;
+        font-weight: 600;
+        color: #c084fc;
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+    }
+    .mp-details summary::-webkit-details-marker {
+        display: none;
+    }
+    .mp-details-body {
+        margin-top: 18px;
+        padding: 18px;
+        border-radius: 10px;
+        background-color: #0b1120;
+        border: 1px solid #1f2937;
+    }
+    .mp-info-banner {
+        padding: 10px 14px;
+        margin-bottom: 18px;
+        border-radius: 8px;
+        background-color: rgba(147, 51, 234, 0.08);
+        border: 1px solid rgba(147, 51, 234, 0.25);
+        font-size: 0.78rem;
+        line-height: 1.7;
+        color: #d1d5db;
+    }
+    .mp-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        direction: rtl;
+    }
+    .mp-btn-primary {
+        background-color: #9333ea;
+        color: #ffffff;
+        font-size: 0.875rem;
+        font-weight: 600;
+        padding: 10px 22px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+    .mp-btn-primary:hover {
+        background-color: #7e22ce;
+    }
+    .mp-btn-secondary {
+        background-color: transparent;
+        color: #d1d5db;
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 9px 18px;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+    }
+    .mp-btn-secondary:hover {
+        background-color: #1f2937;
+    }
+</style>
+
+<div class="mp-wrapper" dir="rtl">
+    <form method="post" id="minimalPlanForm">
+        {% csrf_token %}
+
+        <div class="mp-card">
+            <div class="mp-card-header">
+                <span>۱. مشخصات پلن فروش در ربات تلگرام</span>
+                <span class="mp-header-badge">تنظیمات فروشگاه</span>
+            </div>
+
+            <div class="mp-grid-2">
+                <div class="mp-field">
+                    <div class="mp-label-row">
+                        <label class="mp-label" for="id_plan_type">دسته‌بندی سرور</label>
+                    </div>
+                    <select name="plan_type" id="id_plan_type" class="mp-select mp-rtl-input" onchange="handlePlanTypeChange()">
+                        <option value="direct" selected>⚡ اشتراک دایرکت (Direct)</option>
+                        <option value="tunnel">🛡 اشتراک تانل (Tunnel)</option>
+                    </select>
+                    <div class="mp-hint">گروه سرور مربوطه در پاسارگارد به صورت خودکار انتخاب می‌شود.</div>
+                </div>
+
+                <div class="mp-field">
+                    <div class="mp-label-row">
+                        <label class="mp-label" for="id_price">قیمت فروش (تومان)</label>
+                    </div>
+                    <input type="number" name="price" id="id_price" class="mp-input mp-ltr-input" value="150000" min="0" step="1000" required oninput="syncSuggestedTexts()" />
+                    <div id="price_hint" class="mp-hint">معادل: ۱۵۰,۰۰۰ تومان</div>
+                </div>
+            </div>
+
+            <div class="mp-grid-2">
+                <div class="mp-field">
+                    <div class="mp-label-row">
+                        <label class="mp-label" for="id_volume_gb">حجم ترافیک (گیگابایت)</label>
+                    </div>
+                    <input type="number" name="volume_gb" id="id_volume_gb" class="mp-input mp-ltr-input" value="30" min="0" required oninput="syncSuggestedTexts()" />
+                    <div class="mp-hint">برای پلن نامحدود عدد 0 وارد کنید.</div>
+                </div>
+
+                <div class="mp-field">
+                    <div class="mp-label-row">
+                        <label class="mp-label" for="id_expire_value">مدت اعتبار اشتراک</label>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <input type="number" name="expire_value" id="id_expire_value" class="mp-input mp-ltr-input" value="30" min="1" required oninput="syncSuggestedTexts()" />
+                        <select name="expire_unit" id="id_expire_unit" class="mp-select mp-rtl-input" onchange="syncSuggestedTexts()">
+                            <option value="days" selected>روز</option>
+                            <option value="months">ماه (۳۰ روزه)</option>
+                            <option value="hours">ساعت</option>
+                        </select>
+                    </div>
+                    <div class="mp-hint">مدت زمان اعتبار سرویس پس از فعال‌سازی.</div>
+                </div>
+            </div>
+
+            <div class="mp-grid-2">
+                <div class="mp-field">
+                    <div class="mp-label-row">
+                        <label class="mp-label" for="id_max_users">تعداد کاربر / دستگاه مجاز</label>
+                    </div>
+                    <input type="number" name="max_users" id="id_max_users" class="mp-input mp-ltr-input" value="1" min="1" required oninput="syncSuggestedTexts()" />
+                    <div class="mp-hint">در پلن‌های نامحدود، تعداد دستگاه مجاز روی قالب پاسارگارد اعمال می‌شود.</div>
+                </div>
+
+                <div class="mp-field">
+                    <div class="mp-label-row">
+                        <label class="mp-label" for="id_sort_order">ترتیب نمایش در ربات</label>
+                    </div>
+                    <input type="number" name="sort_order" id="id_sort_order" class="mp-input mp-ltr-input" value="{{ next_direct_order|default:1 }}" data-next-direct="{{ next_direct_order|default:1 }}" data-next-tunnel="{{ next_tunnel_order|default:1 }}" min="1" required oninput="this.dataset.manual='1'" />
+                    <div class="mp-hint">به صورت خودکار روی آخرین ترتیب + ۱ تنظیم می‌شود (اعداد کوچک‌تر بالاتر قرار می‌گیرند).</div>
+                </div>
+            </div>
+
+            <div class="mp-field">
+                <div class="mp-label-row">
+                    <label class="mp-label" for="id_title">عنوان نمایشی روی دکمه تلگرام</label>
+                </div>
+                <input type="text" name="title" id="id_title" class="mp-input mp-rtl-input" required oninput="this.dataset.manual='1'; updateLivePreview();" />
+                <div class="mp-preview-box">
+                    <span style="color: #9ca3af; font-size: 0.76rem;">پیش‌نمایش دکمه در ربات:</span>
+                    <strong id="btn_live_preview" style="color: #f3f4f6;">⚡ ۳۰ گیگ دایرکت - ۱ ماهه (۱۵۰,۰۰۰ تومان)</strong>
+                </div>
+            </div>
+
+            <div class="mp-field">
+                <label class="mp-check-row">
+                    <input type="checkbox" name="is_active" checked />
+                    <span>این پلن بلافاصله پس از ذخیره در ربات تلگرام فعال و قابل خرید باشد</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="mp-card">
+            <div class="mp-card-header">
+                <span>۲. اتصال خودکار به پنل پاسارگارد</span>
+                <span class="mp-header-badge">User Template</span>
+            </div>
+
+            <div class="mp-field">
+                <div class="mp-label-row">
+                    <label class="mp-label" for="id_template_mode">نحوه اتصال به قالب پاسارگارد</label>
+                </div>
+                <select name="template_mode" id="id_template_mode" class="mp-select mp-rtl-input" onchange="toggleTemplateMode()">
+                    <option value="create_new" selected>ساخت خودکار قالب جدید در پاسارگارد (پیشنهادی)</option>
+                    <option value="use_existing">انتخاب از قالب‌های موجود در پاسارگارد</option>
+                </select>
+            </div>
+
+            <div id="existing_tpl_section" class="mp-field" style="display: none;">
+                <div class="mp-label-row">
+                    <label class="mp-label" for="id_existing_template_id">انتخاب قالب از لیست پاسارگارد</label>
+                    <span class="mp-code-tag">Template ID</span>
+                </div>
+                <select name="existing_template_id" id="id_existing_template_id" class="mp-select mp-ltr-input">
+                    {% for tpl in templates_list %}
+                        <option value="{{ tpl.id }}">#{{ tpl.id }} — {{ tpl.name }} ({% if tpl.data_limit_gb > 0 %}{{ tpl.data_limit_gb }} GB{% else %}Unlimited{% endif %} | {{ tpl.expire_days }} Days)</option>
+                    {% empty %}
+                        <option value="">قالبی در پاسارگارد یافت نشد</option>
+                    {% endfor %}
+                </select>
+                <div class="mp-hint">این پلن به قالب انتخاب‌شده در پنل پاسارگارد متصل می‌شود.</div>
+            </div>
+
+            <div id="new_tpl_section">
+                <div class="mp-grid-2">
+                    <div class="mp-field">
+                        <div class="mp-label-row">
+                            <label class="mp-label" for="id_template_name">نام قالب در پاسارگارد</label>
+                            <span class="mp-code-tag">name</span>
+                        </div>
+                        <input type="text" name="template_name" id="id_template_name" class="mp-input mp-ltr-input" maxlength="64" required oninput="this.dataset.manual='1'" />
+                        <div class="mp-hint">نام یکتا برای شناسایی قالب در بخش Templates پاسارگارد.</div>
+                    </div>
+
+                    <div class="mp-field">
+                        <div class="mp-label-row">
+                            <label class="mp-label" for="id_status">وضعیت اولیه اشتراک</label>
+                            <span class="mp-code-tag">status</span>
+                        </div>
+                        <select name="status" id="id_status" class="mp-select mp-rtl-input" onchange="toggleOnHoldField()">
+                            <option value="active" selected>فعال از لحظه خرید (Active)</option>
+                            <option value="on_hold">شروع زمان با اولین اتصال (On Hold)</option>
+                        </select>
+                        <div class="mp-hint">در حالت On Hold، زمان اعتبار از لحظه اولین اتصال کاربر محاسبه می‌شود.</div>
+                    </div>
+                </div>
+
+                <div class="mp-field" id="on_hold_box" style="display: none;">
+                    <div class="mp-label-row">
+                        <label class="mp-label" for="id_on_hold_timeout">حداکثر مهلت انتظار برای اولین اتصال (ثانیه)</label>
+                        <span class="mp-code-tag">on_hold_timeout</span>
+                    </div>
+                    <input type="number" name="on_hold_timeout" id="id_on_hold_timeout" class="mp-input mp-ltr-input" value="86400" min="60" />
+                    <div class="mp-hint">اگر کاربر تا این زمان متصل نشود، اشتراک به صورت خودکار فعال می‌گردد (پیش‌فرض: 86400 ثانیه = ۲۴ ساعت).</div>
+                </div>
+
+                <div class="mp-field">
+                    <div class="mp-label-row">
+                        <label class="mp-label">گروه‌های سرور مجاز در پاسارگارد</label>
+                        <span class="mp-code-tag">group_ids</span>
+                    </div>
+                    <div class="mp-groups-list">
+                        {% for grp in groups_list %}
+                            <label class="mp-check-row">
+                                <input type="checkbox" name="group_ids" value="{{ grp.id }}" class="pg-group-cb" data-gname="{{ grp.name|lower }}" />
+                                <span dir="ltr">{{ grp.name }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <div class="mp-hint">گروه سرورهایی که کاربران این پلن به نودهای آن‌ها دسترسی خواهند داشت.</div>
+                </div>
+
+                <details class="mp-details">
+                    <summary>
+                        <span>تنظیمات پیشرفته پاسارگارد (محدودیت دستگاه، الگوریتم، پیشوند و ریست دوره‌ای)</span>
+                        <span style="font-size: 0.76rem; color: #9ca3af;">کلیک برای باز/بسته کردن ▾</span>
+                    </summary>
+
+                    <div class="mp-details-body">
+                        <div class="mp-info-banner">
+                            مقادیر پیش‌فرض این بخش برای تمامی پلن‌های استاندارد بهینه شده‌اند؛ تنها در صورتی که نیاز به محدودیت دستگاه خاص، تغییر الگوریتم Shadowsocks یا ریست ماهانه حجم دارید آن‌ها را تغییر دهید.
+                        </div>
+
+                        <div class="mp-grid-2">
+                            <div class="mp-field">
+                                <div class="mp-label-row">
+                                    <label class="mp-label" for="id_hwid_limit">محدودیت تعداد دستگاه همزمان</label>
+                                    <span class="mp-code-tag">hwid_limit</span>
+                                </div>
+                                <input type="number" name="hwid_limit" id="id_hwid_limit" class="mp-input mp-ltr-input" min="0" placeholder="Default" />
+                                <div class="mp-hint">خالی = پیش‌فرض پنل | عدد 0 = نامحدود | عدد دلخواه = حداکثر دستگاه همزمان.</div>
+                            </div>
+
+                            <div class="mp-field">
+                                <div class="mp-label-row">
+                                    <label class="mp-label" for="id_method">الگوریتم رمزنگاری Shadowsocks</label>
+                                    <span class="mp-code-tag">method</span>
+                                </div>
+                                <select name="method" id="id_method" class="mp-select mp-rtl-input">
+                                    <option value="chacha20-ietf-poly1305" selected>chacha20-ietf-poly1305 (پیشنهادی و سبک برای موبایل)</option>
+                                    <option value="xchacha20-poly1305">xchacha20-poly1305 (نسخه ارتقایافته موبایل)</option>
+                                    <option value="aes-128-gcm">aes-128-gcm (سریع در کامپیوتر و پردازنده‌های جدید)</option>
+                                    <option value="aes-256-gcm">aes-256-gcm (بالاترین سطح امنیت رمزنگاری)</option>
+                                </select>
+                                <div class="mp-hint">فقط روی پروتکل Shadowsocks اعمال می‌شود و تاثیری روی VLESS یا VMess ندارد.</div>
+                            </div>
+                        </div>
+
+                        <div class="mp-grid-2">
+                            <div class="mp-field">
+                                <div class="mp-label-row">
+                                    <label class="mp-label" for="id_username_prefix">پیشوند نام کاربری</label>
+                                    <span class="mp-code-tag">username_prefix</span>
+                                </div>
+                                <input type="text" name="username_prefix" id="id_username_prefix" class="mp-input mp-ltr-input" maxlength="20" placeholder="مثال: vip_" />
+                                <div class="mp-hint">عبارتی که به ابتدای نام سرویس در پاسارگارد اضافه می‌شود (مثلاً vip_ali).</div>
+                            </div>
+
+                            <div class="mp-field">
+                                <div class="mp-label-row">
+                                    <label class="mp-label" for="id_username_suffix">پسوند نام کاربری</label>
+                                    <span class="mp-code-tag">username_suffix</span>
+                                </div>
+                                <input type="text" name="username_suffix" id="id_username_suffix" class="mp-input mp-ltr-input" maxlength="20" placeholder="مثال: _dir" />
+                                <div class="mp-hint">عبارتی که به انتهای نام سرویس در پاسارگارد اضافه می‌شود (مثلاً ali_dir).</div>
+                            </div>
+                        </div>
+
+                        <div class="mp-field">
+                            <div class="mp-label-row">
+                                <label class="mp-label" for="id_reset_strategy">استراتژی بازنشانی دوره‌ای حجم</label>
+                                <span class="mp-code-tag">data_limit_reset_strategy</span>
+                            </div>
+                            <select name="data_limit_reset_strategy" id="id_reset_strategy" class="mp-select mp-rtl-input">
+                                <option value="no_reset" selected>بدون ریست دوره‌ای — مصرف کل حجم در طول دوره (no_reset)</option>
+                                <option value="day">ریست روزانه — صفر شدن مصرف هر ۲۴ ساعت (day)</option>
+                                <option value="week">ریست هفتگی — صفر شدن مصرف هر ۷ روز (week)</option>
+                                <option value="month">ریست ماهانه — مناسب پلن‌های چندماهه (month)</option>
+                                <option value="year">ریست سالانه — صفر شدن مصرف هر ۳۶۵ روز (year)</option>
+                            </select>
+                            <div class="mp-hint">برای پلن‌های چندماهه با حجم ماهانه (مثلاً ۳ ماهه، ماهی ۵۰ گیگ)، گزینه ریست ماهانه را انتخاب کنید.</div>
+                        </div>
+
+                        <div class="mp-field">
+                            <label class="mp-check-row">
+                                <input type="checkbox" name="reset_usages" value="1" />
+                                <span>صفر کردن ترافیک مصرف‌شده قبلی هنگام اعمال مجدد قالب روی کاربر فعلی <span class="mp-code-tag">reset_usages</span></span>
+                            </label>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <div class="mp-actions">
+            <button type="submit" class="mp-btn-primary">
+                ذخیره و ساخت پلن
+            </button>
+            <a href="{{ cancel_url }}" class="mp-btn-secondary">
+                انصراف و بازگشت
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toPersianDigits(val) {
+        const map = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+        return String(val).replace(/[0-9]/g, w => map[+w]);
+    }
+
+    function handlePlanTypeChange() {
+        const pType = document.getElementById('id_plan_type').value;
+        const sortInput = document.getElementById('id_sort_order');
+        if (sortInput && !sortInput.dataset.manual) {
+            sortInput.value = (pType === 'tunnel')
+                ? sortInput.getAttribute('data-next-tunnel')
+                : sortInput.getAttribute('data-next-direct');
+        }
+
+        const boxes = document.querySelectorAll('.pg-group-cb');
+        let matched = false;
+        boxes.forEach(cb => {
+            const gname = cb.getAttribute('data-gname') || '';
+            if (pType === 'tunnel' && gname.includes('tunnel')) {
+                cb.checked = true;
+                matched = true;
+            } else if (pType === 'direct' && !gname.includes('tunnel')) {
+                cb.checked = true;
+                matched = true;
+            } else {
+                cb.checked = false;
+            }
+        });
+        if (!matched && boxes.length > 0) {
+            boxes[0].checked = true;
+        }
+        syncSuggestedTexts();
+    }
+
+    function toggleTemplateMode() {
+        const mode = document.getElementById('id_template_mode').value;
+        const isExisting = (mode === 'use_existing');
+        document.getElementById('existing_tpl_section').style.display = isExisting ? 'block' : 'none';
+        document.getElementById('new_tpl_section').style.display = isExisting ? 'none' : 'block';
+        document.getElementById('id_template_name').required = !isExisting;
+    }
+
+    function toggleOnHoldField() {
+        const st = document.getElementById('id_status').value;
+        document.getElementById('on_hold_box').style.display = (st === 'on_hold') ? 'block' : 'none';
+    }
+
+    function updateLivePreview() {
+        const titleInput = document.getElementById('id_title');
+        const previewEl = document.getElementById('btn_live_preview');
+        if (previewEl && titleInput) {
+            previewEl.innerText = titleInput.value || '—';
+        }
+    }
+
+    function syncSuggestedTexts() {
+        const pType = document.getElementById('id_plan_type').value;
+        const vol = parseInt(document.getElementById('id_volume_gb').value || '0', 10);
+        const maxUsers = parseInt(document.getElementById('id_max_users').value || '1', 10);
+        const expVal = parseInt(document.getElementById('id_expire_value').value || '30', 10);
+        const expUnit = document.getElementById('id_expire_unit').value;
+        const price = parseInt(document.getElementById('id_price').value || '0', 10);
+
+        const formattedPrice = toPersianDigits(price.toLocaleString('en-US'));
+        document.getElementById('price_hint').innerText = 'معادل: ' + formattedPrice + ' تومان';
+
+        const hwidInput = document.getElementById('id_hwid_limit');
+        if (vol === 0 || maxUsers > 1) {
+            hwidInput.value = maxUsers;
+        } else {
+            hwidInput.value = '';
+        }
+
+        const tplInput = document.getElementById('id_template_name');
+        if (!tplInput.dataset.manual) {
+            const typeEn = (pType === 'direct') ? 'Direct' : 'Tunnel';
+            const unitShort = {days: 'D', months: 'M', hours: 'H'}[expUnit] || 'D';
+            tplInput.value = (vol > 0)
+                ? `${typeEn} ${vol}GB ${expVal}${unitShort}`
+                : `${typeEn} Unlim ${maxUsers}U`;
+        }
+
+        const titleInput = document.getElementById('id_title');
+        if (!titleInput.dataset.manual) {
+            const typeFa = (pType === 'direct') ? 'دایرکت' : 'تانل';
+            let durFa = `${toPersianDigits(expVal)} روزه`;
+            if (expUnit === 'months') {
+                durFa = `${toPersianDigits(expVal)} ماهه`;
+            } else if (expUnit === 'days' && expVal % 30 === 0) {
+                durFa = `${toPersianDigits(expVal / 30)} ماهه`;
+            } else if (expUnit === 'hours') {
+                durFa = `${toPersianDigits(expVal)} ساعته`;
+            }
+
+            if (vol > 0) {
+                const icon = (pType === 'direct') ? '⚡' : '🛡';
+                titleInput.value = `${icon} ${toPersianDigits(vol)} گیگ ${typeFa} - ${durFa} (${formattedPrice} تومان)`;
+            } else {
+                titleInput.value = `♾ نامحدود ${typeFa} ${durFa} - ${toPersianDigits(maxUsers)} کاربره (${formattedPrice} تومان)`;
+            }
+        }
+        updateLivePreview();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        handlePlanTypeChange();
+    });
+</script>
+{% endblock %}
