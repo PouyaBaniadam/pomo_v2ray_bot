@@ -4,6 +4,7 @@ from aiogram import (
     F,
     Bot,
 )
+from aiogram.filters import StateFilter
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -107,7 +108,7 @@ async def select_category(
 
 
 @router.callback_query(
-    BuyServiceState.selecting_plan,
+    StateFilter("*"),
     F.data == "back_to_categories",
 )
 async def back_to_categories(
@@ -421,6 +422,7 @@ async def execute_purchase(
             ),
             parse_mode="HTML",
         )
+        await callback.answer()
 
         admin_instant_alert = (
             f"✅ <b>فروش و تحویل خودکار سرویس! (#{order.id})</b>\n\n"
@@ -478,6 +480,7 @@ async def execute_purchase(
 
 
 @router.callback_query(
+    StateFilter("*"),
     F.data == "cancel_buy_flow",
 )
 async def cancel_buy_flow(
