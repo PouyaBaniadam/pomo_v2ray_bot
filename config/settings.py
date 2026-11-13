@@ -142,6 +142,11 @@ UNFOLD = {
                         "icon": "receipt_long",
                         "link": reverse_lazy("admin:core_transaction_changelist"),
                     },
+                    {
+                        "title": "آمار کلی و حسابداری",
+                        "icon": "monitoring",
+                        "link": reverse_lazy("admin:core_accountingreport_changelist"),
+                    },
                 ],
             },
             {

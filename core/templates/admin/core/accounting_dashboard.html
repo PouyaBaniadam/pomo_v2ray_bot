@@ -1,0 +1,838 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<script src="{% static 'core/js/chart.umd.min.js' %}" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';"></script>
+
+<style>
+    .acc-wrap {
+        width: 100%;
+        max-width: 1200px;
+        margin: 12px auto 52px;
+        direction: rtl;
+        text-align: right;
+        font-family: inherit;
+        color: #f3f4f6;
+        box-sizing: border-box;
+    }
+    .acc-wrap *,
+    .acc-wrap *::before,
+    .acc-wrap *::after {
+        box-sizing: border-box;
+    }
+    .acc-topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+    }
+    .acc-period-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+    .acc-pill {
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.81rem;
+        font-weight: 500;
+        text-decoration: none;
+        color: #d1d5db;
+        background-color: #0f172a;
+        border: 1px solid #374151;
+        transition: all 0.15s ease;
+    }
+    .acc-pill:hover {
+        border-color: #9333ea;
+        color: #ffffff;
+    }
+    .acc-pill.active {
+        background-color: #9333ea;
+        border-color: #9333ea;
+        color: #ffffff;
+        font-weight: 600;
+    }
+    .acc-btn-excel {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        padding: 7px 14px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-decoration: none;
+        background-color: #16a34a;
+        color: #ffffff;
+    }
+    .acc-btn-excel:hover {
+        background-color: #15803d;
+    }
+    .acc-subbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+        padding: 12px 16px;
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+    }
+    .acc-user-picker {
+        position: relative;
+        width: 280px;
+    }
+    .acc-user-picker-input {
+        width: 100%;
+        height: 36px;
+        padding: 0 12px;
+        font-size: 0.82rem;
+        color: #f9fafb;
+        background-color: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 8px;
+    }
+    .acc-user-picker-input:focus {
+        outline: none;
+        border-color: #9333ea;
+    }
+    .acc-user-picker-menu {
+        display: none;
+        position: absolute;
+        top: 40px;
+        right: 0;
+        width: 100%;
+        max-height: 240px;
+        overflow-y: auto;
+        background-color: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        z-index: 50;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
+    }
+    .acc-user-picker-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        color: #e5e7eb;
+        text-decoration: none;
+        border-bottom: 1px solid #1f2937;
+    }
+    .acc-user-picker-item:hover {
+        background-color: #1f2937;
+    }
+    .acc-kpi-grid-4 {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+    .acc-kpi-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+    @media (max-width: 1024px) {
+        .acc-kpi-grid-4 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 720px) {
+        .acc-kpi-grid-4,
+        .acc-kpi-grid-3 {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+    .acc-kpi-card {
+        min-width: 0;
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 16px 18px;
+    }
+    .acc-kpi-title {
+        font-size: 0.79rem;
+        color: #9ca3af;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .acc-kpi-value {
+        font-size: 1.24rem;
+        font-weight: 700;
+        color: #f9fafb;
+        margin-bottom: 4px;
+    }
+    .acc-kpi-sub {
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+    .acc-growth-up {
+        color: #4ade80;
+        font-weight: 600;
+        direction: ltr;
+    }
+    .acc-growth-down {
+        color: #f87171;
+        font-weight: 600;
+        direction: ltr;
+    }
+    .acc-grid-2 {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+    @media (max-width: 960px) {
+        .acc-grid-2 {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+    .acc-card {
+        min-width: 0;
+        width: 100%;
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 18px;
+    }
+    .acc-card-header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 12px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid #1f2937;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .acc-chart-box {
+        position: relative;
+        width: 100%;
+        height: 250px;
+    }
+    .acc-input,
+    .acc-select {
+        height: 36px;
+        padding: 0 10px;
+        font-size: 0.82rem;
+        color: #f9fafb;
+        background-color: #0f172a;
+        border: 1px solid #374151;
+        border-radius: 8px;
+    }
+    .acc-jalali-input {
+        width: 112px;
+        text-align: center;
+        direction: ltr;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .acc-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+    .acc-table th,
+    .acc-table td {
+        padding: 10px 10px;
+        border-bottom: 1px solid #1f2937;
+        text-align: right;
+    }
+    .acc-table th {
+        color: #9ca3af;
+        font-weight: 600;
+        font-size: 0.76rem;
+    }
+</style>
+
+<div class="acc-wrap" dir="rtl">
+
+    {% if user_analytics %}
+        <div class="acc-topbar">
+            <div>
+                <h2 style="font-size: 1.05rem; font-weight: 700; margin: 0;">
+                    👤 کارنامه مالی کاربر: {{ user_analytics.user.full_name|default:"بدون نام" }}
+                    (<code style="color: #c084fc;">{{ user_analytics.user.telegram_id }}</code>)
+                </h2>
+                <div style="font-size: 0.76rem; color: #9ca3af; margin-top: 4px;">
+                    تاریخ عضویت: {{ user_analytics.joined_jalali }} | آخرین خرید: {{ user_analytics.last_purchase_jalali }}
+                </div>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                <div class="acc-user-picker">
+                    <input type="text" id="userPickerInput" class="acc-user-picker-input" placeholder="تغییر کاربر (جستجوی نام یا آیدی)..." autocomplete="off" />
+                    <div id="userPickerMenu" class="acc-user-picker-menu"></div>
+                </div>
+                <a href="?period={{ active_period }}" class="acc-pill active">
+                    🔙 بازگشت به آمار کلی فروشگاه
+                </a>
+            </div>
+        </div>
+
+        <div class="acc-kpi-grid-3">
+            <div class="acc-kpi-card">
+                <div class="acc-kpi-title">تعداد و حجم کل خریدهای کاربر</div>
+                <div class="acc-kpi-value">{{ user_analytics.purchase_count }} خرید ({{ user_analytics.total_spent_orders_fmt }} تومان)</div>
+                <div class="acc-kpi-sub">مجموع شارژ کیف پول: {{ user_analytics.total_deposited_fmt }} ت | موجودی فعلی: {{ user_analytics.wallet_balance_fmt }} ت</div>
+            </div>
+
+            <div class="acc-kpi-card">
+                <div class="acc-kpi-title">بهترین ماه خرید (در ۱۲ ماه اخیر)</div>
+                <div class="acc-kpi-value" style="color: #4ade80;">{{ user_analytics.best_month_label }}</div>
+                <div class="acc-kpi-sub">مبلغ خرید در آن ماه: {{ user_analytics.best_month_val_fmt }} تومان</div>
+            </div>
+
+            <div class="acc-kpi-card">
+                <div class="acc-kpi-title">وضعیت فعالیت ماهانه</div>
+                <div class="acc-kpi-value" style="color: #fbbf24;">{{ user_analytics.zero_months_count }} ماه بدون خرید</div>
+                <div class="acc-kpi-sub">ماه‌های غیرفعال: {{ user_analytics.low_months_summary }}</div>
+            </div>
+        </div>
+
+        <div class="acc-grid-2">
+            <div class="acc-card" style="margin-bottom: 0;">
+                <div class="acc-card-header">
+                    <span>📊 نمودار خرید ماهانه این کاربر در ۱۲ ماه اخیر شمسی</span>
+                </div>
+                <div class="acc-chart-box">
+                    <canvas id="userMonthlyChartCanvas"></canvas>
+                </div>
+            </div>
+
+            <div class="acc-card" style="margin-bottom: 0;">
+                <div class="acc-card-header">
+                    <span>📦 پلن‌های خریداری‌شده توسط این کاربر</span>
+                </div>
+                <table class="acc-table">
+                    <thead>
+                        <tr>
+                            <th>عنوان پلن (ثبت‌شده در زمان خرید)</th>
+                            <th>تعداد</th>
+                            <th>مجموع مبلغ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fp in user_analytics.favorite_plans %}
+                            <tr>
+                                <td>{{ fp.title }}</td>
+                                <td><strong>{{ fp.count }} بار</strong></td>
+                                <td>{{ fp.spent_fmt }} ت</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="3" style="color: #9ca3af;">هنوز پلنی خریداری نشده است.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="acc-card" style="margin-top: 18px; margin-bottom: 0;">
+            <div class="acc-card-header">
+                <span>🧾 آخرین سفارش‌های ثبت‌شده برای این کاربر</span>
+            </div>
+            <table class="acc-table">
+                <thead>
+                    <tr>
+                        <th>نام سرویس</th>
+                        <th>عنوان پلن در زمان خرید</th>
+                        <th>مبلغ پرداختی</th>
+                        <th>تاریخ ثبت (شمسی)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ro in user_analytics.recent_orders %}
+                        <tr>
+                            <td><code>{{ ro.custom_name }}</code></td>
+                            <td>{{ ro.plan_title }}</td>
+                            <td>{{ ro.price_paid_fmt }} تومان</td>
+                            <td>{{ ro.created_jalali }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" style="color: #9ca3af;">سفارشی ثبت نشده است.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    {% else %}
+
+        <div class="acc-topbar">
+            <div class="acc-period-pills">
+                <span style="font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-left: 4px;">بازه زمانی:</span>
+                <a href="?period=1d&sort={{ active_sort }}" class="acc-pill {% if active_period == '1d' %}active{% endif %}">۱ روز</a>
+                <a href="?period=3d&sort={{ active_sort }}" class="acc-pill {% if active_period == '3d' %}active{% endif %}">۳ روز</a>
+                <a href="?period=7d&sort={{ active_sort }}" class="acc-pill {% if active_period == '7d' %}active{% endif %}">۱ هفته</a>
+                <a href="?period=30d&sort={{ active_sort }}" class="acc-pill {% if active_period == '30d' %}active{% endif %}">۳۰ روز</a>
+                <a href="?period=90d&sort={{ active_sort }}" class="acc-pill {% if active_period == '90d' %}active{% endif %}">۳ ماه</a>
+                <a href="?period=365d&sort={{ active_sort }}" class="acc-pill {% if active_period == '365d' %}active{% endif %}">۱ سال</a>
+                <a href="?period=all&sort={{ active_sort }}" class="acc-pill {% if active_period == 'all' %}active{% endif %}">کل زمان‌ها</a>
+            </div>
+
+            <a href="?period={{ active_period }}&date_from={{ date_from_jalali }}&date_to={{ date_to_jalali }}&export=excel" class="acc-btn-excel">
+                دانلود گزارش اکسل
+            </a>
+        </div>
+
+        <div class="acc-subbar">
+            <form method="get" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                <input type="hidden" name="period" value="custom" />
+                <input type="hidden" name="sort" value="{{ active_sort }}" />
+                <span style="font-size: 0.78rem; color: #9ca3af;">بازه شمسی از:</span>
+                <input type="text" name="date_from" value="{{ date_from_jalali }}" placeholder="1405/07/01" class="acc-input acc-jalali-input" />
+                <span style="font-size: 0.78rem; color: #9ca3af;">تا:</span>
+                <input type="text" name="date_to" value="{{ date_to_jalali }}" placeholder="1405/08/30" class="acc-input acc-jalali-input" />
+                <button type="submit" class="acc-pill active" style="cursor: pointer;">اعمال تاریخ</button>
+            </form>
+
+            <div class="acc-user-picker">
+                <input type="text" id="userPickerInput" class="acc-user-picker-input" placeholder="🔍 جستجوی سریع کارنامه یک کاربر..." autocomplete="off" />
+                <div id="userPickerMenu" class="acc-user-picker-menu"></div>
+            </div>
+        </div>
+
+        <div class="acc-kpi-grid-4">
+            <div class="acc-kpi-card">
+                <div class="acc-kpi-title">
+                    <span>💰 مجموع واریزی تایید شده</span>
+                    {% if deposit_growth is not None %}
+                        <span class="{% if deposit_growth >= 0 %}acc-growth-up{% else %}acc-growth-down{% endif %}">
+                            {% if deposit_growth >= 0 %}+{% endif %}{{ deposit_growth }}%
+                        </span>
+                    {% endif %}
+                </div>
+                <div class="acc-kpi-value">{{ deposit_total_fmt }} <span style="font-size: 0.76rem; font-weight: 400;">تومان</span></div>
+                <div class="acc-kpi-sub">{{ deposit_count }} فیش تایید شده در {{ period_title }}</div>
+            </div>
+
+            <div class="acc-kpi-card">
+                <div class="acc-kpi-title">
+                    <span>🛒 مجموع فروش پلن‌ها</span>
+                    {% if sales_growth is not None %}
+                        <span class="{% if sales_growth >= 0 %}acc-growth-up{% else %}acc-growth-down{% endif %}">
+                            {% if sales_growth >= 0 %}+{% endif %}{{ sales_growth }}%
+                        </span>
+                    {% endif %}
+                </div>
+                <div class="acc-kpi-value">{{ sales_total_fmt }} <span style="font-size: 0.76rem; font-weight: 400;">تومان</span></div>
+                <div class="acc-kpi-sub">{{ sales_count }} اشتراک فروخته شده</div>
+            </div>
+
+            <div class="acc-kpi-card">
+                <div class="acc-kpi-title">
+                    <span>👥 آمار کلی کاربران و سرویس‌ها</span>
+                </div>
+                <div class="acc-kpi-value">{{ total_users_count }} <span style="font-size: 0.78rem; font-weight: 400;">کاربر کل</span></div>
+                <div class="acc-kpi-sub">سرویس فعال: {{ active_subs_count }} | مانده کیف پول کل: {{ total_wallet_liability_fmt }} ت</div>
+            </div>
+
+            <div class="acc-kpi-card">
+                <div class="acc-kpi-title">
+                    <span>⚡ سهم دایرکت و تانل</span>
+                </div>
+                <div class="acc-kpi-value" style="font-size: 1.05rem;">
+                    دایرکت {{ direct_share_pct }}% | تانل {{ tunnel_share_pct }}%
+                </div>
+                <div class="acc-kpi-sub">دایرکت: {{ direct_cnt }} فروش | تانل: {{ tunnel_cnt }} فروش</div>
+            </div>
+        </div>
+
+        <div class="acc-grid-2">
+            <div class="acc-card" style="margin-bottom: 0;">
+                <div class="acc-card-header">
+                    <span>📈 روند واریزی و فروش ({{ start_jalali }} تا {{ end_jalali }})</span>
+                </div>
+                <div class="acc-chart-box">
+                    <canvas id="trendChartCanvas"></canvas>
+                </div>
+            </div>
+
+            <div class="acc-card" style="margin-bottom: 0;">
+                <div class="acc-card-header">
+                    <span>📦 پرفروش‌ترین پلن‌ها (بر اساس عنوان ثبت‌شده در خرید)</span>
+                </div>
+                <div class="acc-chart-box">
+                    <canvas id="plansBarCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="acc-card">
+            <div class="acc-card-header">
+                <span>📊 مقایسه فروش ۱۲ ماه اخیر شمسی (سبز = پرفروش، بنفش = متوسط، نارنجی = کم‌فروش)</span>
+            </div>
+            <div class="acc-chart-box">
+                <canvas id="monthlyChartCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="acc-card" style="margin-bottom: 0;">
+            <div class="acc-card-header">
+                <span>👥 عملکرد مالی کل کاربران ({{ users_financial_rows|length }} کاربر)</span>
+
+                <form method="get" style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                    <input type="hidden" name="period" value="{{ active_period }}" />
+                    {% if active_period == 'custom' %}
+                        <input type="hidden" name="date_from" value="{{ date_from_jalali }}" />
+                        <input type="hidden" name="date_to" value="{{ date_to_jalali }}" />
+                    {% endif %}
+                    <input type="text" id="usersTableSearchInput" name="user_q" value="{{ user_search_query }}" placeholder="جستجوی نام، یوزرنیم یا آیدی..." class="acc-input" style="width: 210px;" />
+                    <select name="sort" class="acc-select" onchange="this.form.submit()">
+                        {% for s_key, s_label in sort_options %}
+                            <option value="{{ s_key }}" {% if active_sort == s_key %}selected{% endif %}>
+                                مرتب‌سازی: {{ s_label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="acc-pill active" style="cursor: pointer;">جستجو</button>
+                </form>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="acc-table" id="usersFinancialTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>کاربر</th>
+                            <th>آیدی تلگرام</th>
+                            <th>خرید در این بازه</th>
+                            <th>کل خرید (همه زمان‌ها)</th>
+                            <th>کل واریزی تایید شده</th>
+                            <th>موجودی کیف پول</th>
+                            <th>آخرین خرید</th>
+                            <th>جزئیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ur in users_financial_rows %}
+                            <tr class="user-fin-row" data-search="{{ ur.telegram_id }} {{ ur.full_name|lower }} {{ ur.username|lower }}">
+                                <td>{{ forloop.counter }}</td>
+                                <td>
+                                    <strong>{{ ur.full_name }}</strong>
+                                    <div style="font-size: 0.74rem; color: #9ca3af; direction: ltr;">{{ ur.username }}</div>
+                                </td>
+                                <td><code>{{ ur.telegram_id }}</code></td>
+                                <td>
+                                    <strong>{{ ur.period_spent_fmt }} ت</strong>
+                                    <span style="font-size: 0.74rem; color: #9ca3af;">({{ ur.period_cnt }} خرید)</span>
+                                </td>
+                                <td>
+                                    <strong>{{ ur.total_spent_fmt }} ت</strong>
+                                    <span style="font-size: 0.74rem; color: #9ca3af;">({{ ur.total_cnt }} خرید)</span>
+                                </td>
+                                <td>{{ ur.total_deposited_fmt }} تومان</td>
+                                <td>{{ ur.wallet_balance_fmt }} تومان</td>
+                                <td>{{ ur.last_purchase_jalali }}</td>
+                                <td>
+                                    <a href="?user_id={{ ur.telegram_id }}" class="acc-pill" style="padding: 4px 10px; font-size: 0.75rem;">
+                                        📊 کارنامه مالی
+                                    </a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="9" style="text-align: center; color: #9ca3af;">کاربری با این مشخصات یافت نشد.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    {% endif %}
+
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const allUsersPicker = {{ all_users_picker_json|safe }};
+        const pickerInput = document.getElementById("userPickerInput");
+        const pickerMenu = document.getElementById("userPickerMenu");
+
+        function renderPickerList(query) {
+            if (!pickerMenu) return;
+            const q = (query || "").trim().replace(/^@/, "").toLowerCase();
+            const filtered = allUsersPicker.filter(u => {
+                if (!q) return true;
+                return String(u.id).includes(q)
+                    || (u.name && u.name.toLowerCase().includes(q))
+                    || (u.username && u.username.toLowerCase().includes(q));
+            }).slice(0, 25);
+
+            if (filtered.length === 0) {
+                pickerMenu.innerHTML = '<div style="padding: 10px 12px; font-size: 0.78rem; color: #9ca3af;">کاربری یافت نشد</div>';
+            } else {
+                pickerMenu.innerHTML = filtered.map(u => `
+                    <a href="?user_id=${u.id}" class="acc-user-picker-item">
+                        <span><strong>${u.name}</strong> <span style="color: #9ca3af;">${u.username}</span></span>
+                        <code style="color: #c084fc;">${u.id}</code>
+                    </a>
+                `).join("");
+            }
+            pickerMenu.style.display = "block";
+        }
+
+        if (pickerInput && pickerMenu) {
+            pickerInput.addEventListener("focus", function () {
+                renderPickerList(this.value);
+            });
+            pickerInput.addEventListener("input", function () {
+                renderPickerList(this.value);
+            });
+            document.addEventListener("click", function (e) {
+                if (!pickerInput.contains(e.target) && !pickerMenu.contains(e.target)) {
+                    pickerMenu.style.display = "none";
+                }
+            });
+        }
+
+        const tableSearchInput = document.getElementById("usersTableSearchInput");
+        if (tableSearchInput) {
+            tableSearchInput.addEventListener("input", function () {
+                const q = this.value.trim().replace(/^@/, "").toLowerCase();
+                document.querySelectorAll(".user-fin-row").forEach(row => {
+                    const hay = row.getAttribute("data-search") || "";
+                    row.style.display = (!q || hay.includes(q)) ? "" : "none";
+                });
+            });
+        }
+
+        function initAccountingCharts() {
+            if (typeof Chart === "undefined") {
+                setTimeout(initAccountingCharts, 150);
+                return;
+            }
+
+            Chart.defaults.color = "#9ca3af";
+            Chart.defaults.borderColor = "#1f2937";
+            Chart.defaults.font.family = "inherit";
+
+            {% if user_analytics %}
+                const userMonthlyData = {{ user_analytics.user_chart_json|safe }};
+                const userChartEl = document.getElementById("userMonthlyChartCanvas");
+                if (userChartEl) {
+                    new Chart(userChartEl, {
+                        type: "bar",
+                        data: {
+                            labels: userMonthlyData.labels,
+                            datasets: [
+                                {
+                                    label: "مبلغ خرید کاربر در ماه (تومان)",
+                                    data: userMonthlyData.spent,
+                                    backgroundColor: userMonthlyData.colors,
+                                    borderRadius: 6,
+                                    maxBarThickness: 34
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (ctx) {
+                                            return "خرید در این ماه: " + Number(ctx.raw || 0).toLocaleString("en-US") + " تومان";
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    suggestedMax: 100000,
+                                    ticks: {
+                                        callback: function (val) {
+                                            return Number(val).toLocaleString("en-US");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            {% else %}
+                const trendData = {{ trend_chart_json|safe }};
+                const monthlyData = {{ monthly_chart_json|safe }};
+                const plansData = {{ plans_chart_json|safe }};
+
+                const trendEl = document.getElementById("trendChartCanvas");
+                if (trendEl) {
+                    new Chart(trendEl, {
+                        type: "line",
+                        data: {
+                            labels: trendData.labels,
+                            datasets: [
+                                {
+                                    label: "واریزی تایید شده (تومان)",
+                                    data: trendData.deposits,
+                                    borderColor: "#a855f7",
+                                    backgroundColor: "rgba(168, 85, 247, 0.15)",
+                                    borderWidth: 2.5,
+                                    pointRadius: 3,
+                                    fill: true,
+                                    tension: 0.3
+                                },
+                                {
+                                    label: "فروش اشتراک (تومان)",
+                                    data: trendData.sales,
+                                    borderColor: "#22c55e",
+                                    backgroundColor: "rgba(34, 197, 94, 0.12)",
+                                    borderWidth: 2.5,
+                                    pointRadius: 3,
+                                    fill: true,
+                                    tension: 0.3
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: "index", intersect: false },
+                            plugins: {
+                                legend: { position: "top", align: "end" },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (ctx) {
+                                            return ctx.dataset.label + ": " + Number(ctx.raw || 0).toLocaleString("en-US") + " تومان";
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    suggestedMax: 100000,
+                                    ticks: {
+                                        callback: function (val) {
+                                            return Number(val).toLocaleString("en-US");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                const plansEl = document.getElementById("plansBarCanvas");
+                if (plansEl) {
+                    const hasPlans = plansData.labels.length > 0;
+                    new Chart(plansEl, {
+                        type: "bar",
+                        data: {
+                            labels: hasPlans ? plansData.labels : ["هنوز پلنی در این بازه فروخته نشده"],
+                            datasets: [
+                                {
+                                    label: "تعداد فروش (عدد)",
+                                    data: hasPlans ? plansData.counts : [0],
+                                    backgroundColor: hasPlans ? plansData.colors : ["#374151"],
+                                    borderRadius: 6,
+                                    maxBarThickness: 26
+                                }
+                            ]
+                        },
+                        options: {
+                            indexAxis: "y",
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (ctx) {
+                                            if (!hasPlans) return "بدون فروش";
+                                            const rev = plansData.revenues[ctx.dataIndex] || 0;
+                                            return "تعداد فروش: " + ctx.raw + " عدد (" + Number(rev).toLocaleString("en-US") + " تومان)";
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    beginAtZero: true,
+                                    suggestedMax: 5,
+                                    ticks: { stepSize: 1 }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                const monthlyEl = document.getElementById("monthlyChartCanvas");
+                if (monthlyEl) {
+                    new Chart(monthlyEl, {
+                        type: "bar",
+                        data: {
+                            labels: monthlyData.labels,
+                            datasets: [
+                                {
+                                    label: "مجموع واریزی ماه (تومان)",
+                                    data: monthlyData.deposits,
+                                    backgroundColor: monthlyData.colors,
+                                    borderRadius: 6,
+                                    maxBarThickness: 36
+                                },
+                                {
+                                    label: "فروش اشتراک ماه (تومان)",
+                                    data: monthlyData.sales,
+                                    backgroundColor: "rgba(59, 130, 246, 0.75)",
+                                    borderRadius: 6,
+                                    maxBarThickness: 36
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: "index", intersect: false },
+                            plugins: {
+                                legend: { position: "top", align: "end" },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (ctx) {
+                                            return ctx.dataset.label + ": " + Number(ctx.raw || 0).toLocaleString("en-US") + " تومان";
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    suggestedMax: 100000,
+                                    ticks: {
+                                        callback: function (val) {
+                                            return Number(val).toLocaleString("en-US");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            {% endif %}
+        }
+
+        initAccountingCharts();
+    });
+</script>
+{% endblock %}

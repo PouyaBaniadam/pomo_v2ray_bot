@@ -16,6 +16,10 @@ from django.utils import timezone
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
 from unfold.decorators import action
+from core.accounting import (
+    build_accounting_context,
+    export_accounting_excel_response,
+)
 from core.jalali import format_jalali
 from core.models import (
     TelegramUser,
@@ -26,6 +30,7 @@ from core.models import (
     RequiredChannel,
     BotSetting,
     BroadcastMessage,
+    AccountingReport,
 )
 from core.services import (
     send_telegram_message_sync,
@@ -84,6 +89,68 @@ def execute_global_free_test_reset(
     )
 
 
+@admin.register(AccountingReport)
+class AccountingReportAdmin(ModelAdmin):
+    def has_add_permission(
+            self,
+            request,
+    ):
+        return False
+
+    def has_change_permission(
+            self,
+            request,
+            obj=None,
+    ):
+        return False
+
+    def has_delete_permission(
+            self,
+            request,
+            obj=None,
+    ):
+        return False
+
+    def changelist_view(
+            self,
+            request,
+            extra_context=None,
+    ):
+        period = request.GET.get("period", "30d")
+        date_from = request.GET.get("date_from")
+        date_to = request.GET.get("date_to")
+        user_id = request.GET.get("user_id")
+        user_q = request.GET.get("user_q")
+        sort_by = request.GET.get("sort", "most_spent")
+
+        if request.GET.get("export") == "excel":
+            return export_accounting_excel_response(
+                period_key=period,
+                date_from_str=date_from,
+                date_to_str=date_to,
+                selected_user_id=user_id,
+            )
+
+        acc_context = build_accounting_context(
+            period_key=period,
+            date_from_str=date_from,
+            date_to_str=date_to,
+            selected_user_id=user_id,
+            user_search_query=user_q,
+            sort_by=sort_by,
+        )
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "آمار کلی و حسابداری",
+            **acc_context,
+        }
+        return render(
+            request,
+            "admin/core/accounting_dashboard.html",
+            context,
+        )
+
+
 @admin.register(TelegramUser)
 class TelegramUserAdmin(ModelAdmin):
     list_display = (
@@ -91,6 +158,7 @@ class TelegramUserAdmin(ModelAdmin):
         'full_name',
         'username',
         'formatted_balance',
+        'user_financial_report_link',
         'is_admin',
         'used_free_test',
         'free_test_count',
@@ -131,6 +199,19 @@ class TelegramUserAdmin(ModelAdmin):
     actions_list = [
         'reset_all_users_free_test_action',
     ]
+
+    @admin.display(description="کارنامه مالی")
+    def user_financial_report_link(
+            self,
+            obj,
+    ):
+        url = f"{reverse_lazy('admin:core_accountingreport_changelist')}?user_id={obj.telegram_id}"
+        return format_html(
+            '<a href="{}" style="display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; background-color: #1f2937; color: #e5e7eb; padding: 5px 11px; border-radius: 7px; font-size: 0.78rem; font-weight: 500; text-decoration: none; border: 1px solid #374151;">'
+            '<span>📊</span><span>کارنامه مالی</span>'
+            '</a>',
+            url,
+        )
 
     @action(
         description="ریست و فعال‌سازی تست برای همه کاربران",
@@ -423,6 +504,11 @@ class TransactionAdmin(ModelAdmin):
         'invoice_number',
         'user__telegram_id',
         'user__username',
+        'user__full_name',
+    )
+    autocomplete_fields = (
+        'user',
+        'target_plan',
     )
     readonly_fields = (
         'invoice_number',
@@ -434,6 +520,19 @@ class TransactionAdmin(ModelAdmin):
         'approve_transactions',
         'reject_transactions',
     ]
+    actions_list = [
+        'open_accounting_dashboard_action',
+    ]
+
+    @action(
+        description="📊 آمار کلی و حسابداری",
+        url_path="go-to-accounting",
+    )
+    def open_accounting_dashboard_action(
+            self,
+            request,
+    ):
+        return redirect(reverse_lazy("admin:core_accountingreport_changelist"))
 
     @admin.display(description="مبلغ")
     def formatted_amount(
@@ -614,11 +713,20 @@ class SubscriptionOrderAdmin(ModelAdmin):
         'panel_username',
         'user__telegram_id',
         'user__username',
+        'user__full_name',
+    )
+    autocomplete_fields = (
+        'user',
+        'plan',
     )
     readonly_fields = (
         'jalali_created_at',
     )
-    exclude = ('created_at',)
+    exclude = (
+        'created_at',
+        'plan_title',
+        'plan_category',
+    )
     actions = ['retry_pasarguard_generation']
 
     @admin.display(

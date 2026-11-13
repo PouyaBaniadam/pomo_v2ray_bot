@@ -262,6 +262,18 @@ class SubscriptionOrder(models.Model):
         blank=True,
         verbose_name="پلن انتخابی",
     )
+    plan_title = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        verbose_name="عنوان پلن (ثبت در لحظه خرید)",
+    )
+    plan_category = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="دسته سرور (ثبت در لحظه خرید)",
+    )
     order_type = models.CharField(
         max_length=20,
         choices=ORDER_TYPES,
@@ -312,6 +324,18 @@ class SubscriptionOrder(models.Model):
         verbose_name = "سفارش سرویس (کانفیگ)"
         verbose_name_plural = "سفارش‌ها و کانفیگ‌های کاربران"
         ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if self.plan:
+            if not self.plan_title:
+                self.plan_title = self.plan.title
+            if not self.plan_category:
+                self.plan_category = self.plan.plan_type
+            if kwargs.get("update_fields") is not None:
+                uf = set(kwargs["update_fields"])
+                uf.update(["plan_title", "plan_category"])
+                kwargs["update_fields"] = list(uf)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.custom_name} ({self.user.telegram_id})"
@@ -638,3 +662,10 @@ class BroadcastMessage(models.Model):
 
     def __str__(self):
         return f"پیام همگانی #{self.id}"
+
+
+class AccountingReport(Transaction):
+    class Meta:
+        proxy = True
+        verbose_name = "داشبورد حسابداری و گزارش مالی"
+        verbose_name_plural = "📊 داشبورد حسابداری و گزارش مالی"
