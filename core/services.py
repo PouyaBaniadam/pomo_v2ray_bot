@@ -57,10 +57,12 @@ def build_service_actions_reply_markup_sync(
                     {
                         "text": "📋 کپی لینک کانفیگ",
                         "copy_text": {"text": clean_link},
+                        "style": "blue",
                     },
                     {
                         "text": "📷 دریافت QR Code",
                         "callback_data": f"get_qr:{order_id}",
+                        "style": "green",
                     },
                 ]
             ]
@@ -71,6 +73,7 @@ def build_service_actions_reply_markup_sync(
                 {
                     "text": "📷 دریافت QR Code",
                     "callback_data": f"get_qr:{order_id}",
+                    "style": "green",
                 }
             ]
         ]
