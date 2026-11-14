@@ -25,6 +25,7 @@ from core.services import get_all_admin_ids
 logger = logging.getLogger(__name__)
 
 _BACKUP_LOCK = asyncio.Lock()
+MAX_ZIP_PART_BYTES = 48 * 1024 * 1024
 
 
 def get_backup_storage_dir() -> str:
@@ -41,8 +42,9 @@ def get_backup_storage_dir() -> str:
 
 def cleanup_old_backup_files(
     backup_dir: str,
-    keep_path: str | None = None,
 ):
+    if not os.path.exists(backup_dir):
+        return
     for entry in os.listdir(backup_dir):
         if not entry.endswith(".zip"):
             continue
@@ -50,12 +52,16 @@ def cleanup_old_backup_files(
             backup_dir,
             entry,
         )
-        if keep_path and os.path.abspath(full_path) == os.path.abspath(keep_path):
-            continue
         try:
             os.remove(full_path)
         except OSError:
             pass
+
+
+def format_file_size_fa(size_bytes: int) -> str:
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.2f} مگابایت"
+    return f"{max(1, round(size_bytes / 1024))} کیلوبایت"
 
 
 @sync_to_async
@@ -76,15 +82,18 @@ def update_backup_runtime_timestamp():
 
 
 @sync_to_async
-def create_full_backup_zip_sync() -> tuple[str, str, int, str]:
+def create_split_backup_archives_sync() -> dict:
     backup_dir = get_backup_storage_dir()
     cleanup_old_backup_files(backup_dir)
 
-    ts_label = timezone.localtime(timezone.now()).strftime("%Y%m%d_%H%M%S")
-    zip_filename = f"pomo_backup_{ts_label}.zip"
-    zip_path = os.path.join(
+    now_local = timezone.localtime(timezone.now())
+    ts_label = now_local.strftime("%Y%m%d_%H%M%S")
+    batch_code = f"BKP_{ts_label}"
+
+    db_zip_filename = f"pomo_db_{ts_label}.zip"
+    db_zip_path = os.path.join(
         backup_dir,
-        zip_filename,
+        db_zip_filename,
     )
 
     db_conf = connection.settings_dict
@@ -178,7 +187,7 @@ def create_full_backup_zip_sync() -> tuple[str, str, int, str]:
         db_dump_files.append((json_dump_path, "database_django.json"))
 
         with zipfile.ZipFile(
-            zip_path,
+            db_zip_path,
             mode="w",
             compression=zipfile.ZIP_DEFLATED,
         ) as zf:
@@ -188,49 +197,106 @@ def create_full_backup_zip_sync() -> tuple[str, str, int, str]:
                     arcname=arc_name,
                 )
 
-            media_root = str(settings.MEDIA_ROOT)
-            if os.path.exists(media_root):
-                for root, _, files in os.walk(media_root):
-                    for fname in files:
-                        abs_media_file = os.path.join(
-                            root,
-                            fname,
-                        )
-                        rel_media_path = os.path.relpath(
-                            abs_media_file,
-                            media_root,
-                        )
-                        zf.write(
-                            abs_media_file,
-                            arcname=os.path.join("media", rel_media_path),
-                        )
+    db_zip_size = os.path.getsize(db_zip_path)
 
-    size_bytes = os.path.getsize(zip_path)
-    return zip_path, zip_filename, size_bytes, db_label
+    media_root = str(settings.MEDIA_ROOT)
+    media_entries: list[tuple[str, str, int]] = []
+    if os.path.exists(media_root):
+        for root, _, files in os.walk(media_root):
+            for fname in sorted(files):
+                abs_media_file = os.path.join(
+                    root,
+                    fname,
+                )
+                try:
+                    fsize = os.path.getsize(abs_media_file)
+                except OSError:
+                    continue
+                if fsize > MAX_ZIP_PART_BYTES:
+                    continue
+                rel_media_path = os.path.relpath(
+                    abs_media_file,
+                    media_root,
+                )
+                media_entries.append((abs_media_file, rel_media_path, fsize))
+
+    chunks: list[list[tuple[str, str, int]]] = []
+    current_chunk: list[tuple[str, str, int]] = []
+    current_chunk_bytes = 0
+
+    for item in media_entries:
+        _, _, fsize = item
+        if current_chunk and (current_chunk_bytes + fsize) > MAX_ZIP_PART_BYTES:
+            chunks.append(current_chunk)
+            current_chunk = [item]
+            current_chunk_bytes = fsize
+        else:
+            current_chunk.append(item)
+            current_chunk_bytes += fsize
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    media_parts: list[dict] = []
+    total_parts = len(chunks)
+
+    for idx, chunk in enumerate(chunks, start=1):
+        part_filename = (
+            f"pomo_media_{ts_label}_part{idx}_of_{total_parts}.zip"
+            if total_parts > 1
+            else f"pomo_media_{ts_label}.zip"
+        )
+        part_path = os.path.join(
+            backup_dir,
+            part_filename,
+        )
+        with zipfile.ZipFile(
+            part_path,
+            mode="w",
+            compression=zipfile.ZIP_DEFLATED,
+        ) as mzf:
+            for abs_f, rel_f, _ in chunk:
+                mzf.write(
+                    abs_f,
+                    arcname=os.path.join("media", rel_f),
+                )
+        part_size = os.path.getsize(part_path)
+        media_parts.append(
+            {
+                "part_index": idx,
+                "total_parts": total_parts,
+                "path": part_path,
+                "filename": part_filename,
+                "size_bytes": part_size,
+                "files_count": len(chunk),
+            }
+        )
+
+    return {
+        "batch_code": batch_code,
+        "db_label": db_label,
+        "db_zip_path": db_zip_path,
+        "db_zip_filename": db_zip_filename,
+        "db_zip_size": db_zip_size,
+        "total_media_files": len(media_entries),
+        "media_parts": media_parts,
+    }
 
 
 async def send_backup_to_admins(
     bot: Bot | None = None,
 ) -> tuple[bool, str]:
     backup_token = getattr(settings, "BACKUP_BOT_TOKEN", "").strip()
-    if not backup_token or "PUT_FULL_BACKUP_BOT_TOKEN_HERE" in backup_token:
+    if not backup_token or "PUT_FULL_BACKUP_BOT_TOKEN_HERE" in backup_token or "FULL_TOKEN_HERE" in backup_token:
         return False, "BACKUP_BOT_TOKEN is not configured."
 
     async with _BACKUP_LOCK:
         try:
             _, interval_mins, _ = await get_backup_runtime_state()
-            zip_path, zip_filename, size_bytes, db_label = await create_full_backup_zip_sync()
+            archive_info = await create_split_backup_archives_sync()
         except Exception as exc:
-            logger.exception(f"Failed to build backup zip: {exc}")
-            return False, f"خطا در ساخت فایل بکاپ: {exc}"
-
-        max_tg_bytes = 49 * 1024 * 1024
-        if size_bytes > max_tg_bytes:
-            size_mb = size_bytes / (1024 * 1024)
-            return (
-                False,
-                f"حجم فایل بکاپ ({size_mb:.1f} مگابایت) از سقف مجاز تلگرام (۵۰ مگابایت) بیشتر است.",
-            )
+            logger.exception(f"Failed to build backup archives: {exc}")
+            return False, f"خطا در ساخت فایل‌های بکاپ: {exc}"
 
         target_ids = set(await get_all_admin_ids())
         admin_username = getattr(settings, "ADMIN_TELEGRAM_USERNAME", "Pomoadmin").lower()
@@ -259,44 +325,92 @@ async def send_backup_to_admins(
                 pass
 
             if not target_ids:
+                cleanup_old_backup_files(get_backup_storage_dir())
                 return False, "هیچ ادمینی برای ارسال بکاپ یافت نشد."
 
             rlm = "\u200f"
-            size_str = (
-                f"{size_bytes / (1024 * 1024):.2f} مگابایت"
-                if size_bytes >= 1024 * 1024
-                else f"{max(1, round(size_bytes / 1024))} کیلوبایت"
-            )
             now_j = to_jalali_datetime(timezone.now())
             date_str = now_j.strftime("%Y/%m/%d") if now_j else "—"
             time_str = now_j.strftime("%H:%M") if now_j else "—"
 
-            caption = (
-                f"{rlm}🗄 <b>بکاپ کامل سیستم (دیتابیس + مدیا)</b>\n"
-                f"{rlm}📅 تاریخ: <b>{date_str}</b> | ساعت: <b>{time_str}</b>\n"
-                f"{rlm}💾 موتور دیتابیس: <b>{db_label}</b>\n"
-                f"{rlm}📦 حجم فایل: <b>{size_str}</b>\n"
-                f"{rlm}⏱ دوره فعلی: <b>هر {interval_mins} دقیقه</b>"
+            batch_code = archive_info["batch_code"]
+            db_label = archive_info["db_label"]
+            db_size_str = format_file_size_fa(archive_info["db_zip_size"])
+            total_media_files = archive_info["total_media_files"]
+            media_parts = archive_info["media_parts"]
+            total_parts_count = len(media_parts)
+
+            media_summary_line = (
+                f"{total_media_files} فایل (در {total_parts_count} پارت زیپ)"
+                if total_parts_count > 0
+                else "بدون فایل (خالی)"
             )
 
-            sent_count = 0
+            splitter_text = (
+                f"{rlm}━━━━━━━━━━━━━━━━━━━━\n"
+                f"{rlm}📦 <b>بسته بکاپ خودکار سیستم</b>\n"
+                f"{rlm}🆔 کد نوبت: <code>#{batch_code}</code>\n"
+                f"{rlm}📅 تاریخ: <b>{date_str}</b> | ساعت: <b>{time_str}</b>\n"
+                f"{rlm}💾 دیتابیس: <b>{db_label}</b> ({db_size_str})\n"
+                f"{rlm}🖼 پوشه مدیا: <b>{media_summary_line}</b>\n"
+                f"{rlm}⏱ دوره بکاپ: <b>هر {interval_mins} دقیقه</b>\n"
+                f"{rlm}━━━━━━━━━━━━━━━━━━━━"
+            )
+
+            db_caption = (
+                f"{rlm}🗄 <b>[دیتابیس] بکاپ کامل اطلاعات</b>\n"
+                f"{rlm}🆔 کد نوبت: <code>#{batch_code}</code>\n"
+                f"{rlm}💾 موتور: <b>{db_label}</b>\n"
+                f"{rlm}📦 حجم فایل: <b>{db_size_str}</b>"
+            )
+
+            sent_admins = 0
             for aid in target_ids:
                 try:
+                    await backup_bot.send_message(
+                        chat_id=aid,
+                        text=splitter_text,
+                        parse_mode="HTML",
+                    )
                     await backup_bot.send_document(
                         chat_id=aid,
                         document=FSInputFile(
-                            zip_path,
-                            filename=zip_filename,
+                            archive_info["db_zip_path"],
+                            filename=archive_info["db_zip_filename"],
                         ),
-                        caption=caption,
+                        caption=db_caption,
                         parse_mode="HTML",
                     )
-                    sent_count += 1
+                    for part in media_parts:
+                        p_idx = part["part_index"]
+                        p_total = part["total_parts"]
+                        p_size_str = format_file_size_fa(part["size_bytes"])
+                        p_count = part["files_count"]
+                        media_caption = (
+                            f"{rlm}🖼 <b>[مدیا] پارت {p_idx} از {p_total}</b>\n"
+                            f"{rlm}🆔 کد نوبت: <code>#{batch_code}</code>\n"
+                            f"{rlm}📁 تعداد رسید در این پارت: <b>{p_count} فایل</b>\n"
+                            f"{rlm}📦 حجم این پارت: <b>{p_size_str}</b>"
+                        )
+                        await backup_bot.send_document(
+                            chat_id=aid,
+                            document=FSInputFile(
+                                part["path"],
+                                filename=part["filename"],
+                            ),
+                            caption=media_caption,
+                            parse_mode="HTML",
+                        )
+                    sent_admins += 1
                 except Exception as exc:
-                    logger.warning(f"Failed to send backup via backup_bot to {aid}: {exc}")
+                    logger.warning(f"Failed to send backup batch to admin {aid}: {exc}")
 
-            await update_backup_runtime_timestamp()
-            return True, f"بکاپ ({size_str}) با موفقیت به {sent_count} ادمین در ربات بکاپ ارسال شد."
+            cleanup_old_backup_files(get_backup_storage_dir())
+
+            if sent_admins > 0:
+                await update_backup_runtime_timestamp()
+                return True, f"بکاپ #{batch_code} به {sent_admins} ادمین ارسال شد."
+            return False, "ارسال بکاپ به ادمین‌ها ناموفق بود (مطمئن شوید ربات بکاپ استارت خورده است)."
         finally:
             await backup_bot.session.close()
 
@@ -313,7 +427,11 @@ async def backup_scheduler_loop(bot: Bot | None = None):
                     or (now - last_at) >= timedelta(minutes=interval_mins)
                 )
                 if is_due:
-                    await send_backup_to_admins()
+                    ok, msg = await send_backup_to_admins()
+                    if ok:
+                        logger.info(f"Backup task: {msg}")
+                    else:
+                        logger.warning(f"Backup task skipped/failed: {msg}")
         except asyncio.CancelledError:
             raise
         except Exception as exc:

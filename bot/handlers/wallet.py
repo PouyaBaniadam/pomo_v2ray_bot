@@ -54,6 +54,49 @@ ALLOWED_IMAGE_MIME_TYPES = {
 }
 
 
+def optimize_receipt_image_file(file_path: str) -> str:
+    try:
+        from PIL import (
+            Image,
+            ImageOps,
+        )
+
+        with Image.open(file_path) as img:
+            img = ImageOps.exif_transpose(img)
+            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                rgba = img.convert("RGBA")
+                background.paste(rgba, mask=rgba.split()[3])
+                img = background
+            elif img.mode != "RGB":
+                img = img.convert("RGB")
+
+            max_dimension = 1600
+            if img.width > max_dimension or img.height > max_dimension:
+                img.thumbnail(
+                    (max_dimension, max_dimension),
+                    Image.Resampling.LANCZOS,
+                )
+
+            base_no_ext = os.path.splitext(file_path)[0]
+            optimized_jpg_path = f"{base_no_ext}.jpg"
+            img.save(
+                optimized_jpg_path,
+                format="JPEG",
+                quality=82,
+                optimize=True,
+            )
+
+        if optimized_jpg_path != file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+        return optimized_jpg_path
+    except Exception:
+        return file_path
+
+
 @router.message(
     F.text == BTN_CHARGE_WALLET,
 )
@@ -333,15 +376,18 @@ async def save_and_forward_receipt_image(
         upload_abs_dir,
         file_name,
     )
-    rel_db_path = os.path.join(
-        media_rel_dir,
-        file_name,
-    ).replace("\\", "/")
 
     await bot.download(
         file_obj,
         destination=abs_file_path,
     )
+
+    abs_file_path = optimize_receipt_image_file(abs_file_path)
+    final_file_name = os.path.basename(abs_file_path)
+    rel_db_path = os.path.join(
+        media_rel_dir,
+        final_file_name,
+    ).replace("\\", "/")
 
     tx = await update_transaction_receipt(
         inv_num,
