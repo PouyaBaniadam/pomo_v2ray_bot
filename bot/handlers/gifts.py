@@ -1,12 +1,5 @@
-from aiogram import (
-    Router,
-    F,
-    Bot,
-)
-from aiogram.types import (
-    Message,
-    CallbackQuery,
-)
+from aiogram import Router, F, Bot
+from aiogram.types import Message, CallbackQuery
 from django.conf import settings
 
 from bot.keyboards import (
@@ -29,20 +22,15 @@ from core.services import (
 router = Router()
 
 
-@router.message(
-    F.text.startswith(BTN_FREE_TEST_PREFIX),
-)
-async def handle_free_test_request(
-    message: Message,
-    bot: Bot,
-):
+@router.message(F.text.startswith(BTN_FREE_TEST_PREFIX))
+async def handle_free_test_request(message: Message, bot: Bot):
     bot_settings = await get_bot_settings()
     success, delivery_type, order = await claim_free_test_order(message.from_user.id)
 
     if not success:
         if delivery_type == "disabled":
             await message.answer(
-                "⚠️ <b>دریافت تست رایگان در حال حاضر غیرفعال است.</b>",
+                "⚠️ دریافت تست رایگان در حال حاضر غیرفعال است.",
                 reply_markup=get_main_menu_keyboard(
                     show_free_test=False,
                     free_test_title=bot_settings.free_test_title,
@@ -52,8 +40,7 @@ async def handle_free_test_request(
             return
 
         await message.answer(
-            "⚠️ <b>شما قبلاً از تست رایگان خود استفاده کرده‌اید!</b>\n"
-            "هر کاربر (بر اساس آیدی عددی تلگرام) تنها یک‌بار امکان دریافت تست رایگان دارد.",
+            "⚠️ شما قبلاً از تست رایگان استفاده کرده‌اید.",
             reply_markup=get_main_menu_keyboard(
                 show_free_test=False,
                 free_test_title=bot_settings.free_test_title,
@@ -68,7 +55,7 @@ async def handle_free_test_request(
 
     if delivery_type == "instant":
         await message.answer(
-            f"🎁 <b>تست رایگان ({test_title}) شما به صورت خودکار فعال شد!</b>",
+            "🎁 تست رایگان شما فعال شد.",
             reply_markup=get_main_menu_keyboard(
                 show_free_test=False,
                 free_test_title=test_title,
@@ -76,18 +63,13 @@ async def handle_free_test_request(
             parse_mode="HTML",
         )
         await message.answer(
-            f"🎉 <b>اطلاعات سرویس تست رایگان شما (دایرکت + تانل):</b>\n\n"
-            f"🏷 نام سرویس: <code>{order.panel_username or order.custom_name}</code>\n"
-            f"📦 مشخصات: {test_title}\n"
-            f"📅 تاریخ دریافت: <b>{order_date}</b>\n"
-            f"⏳ زمان اعتبار: <b>{bot_settings.free_test_days} روز (شروع از اولین اتصال)</b>\n\n"
-            f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
-            f"<code>{order.config_link}</code>\n\n"
-            f"💡 از دکمه‌های زیر می‌توانید لینک را با یک کلیک کپی کنید یا QR Code آن را دریافت نمایید:",
-            reply_markup=get_service_actions_kb(
-                order.id,
-                order.config_link,
-            ),
+            f"🎉 <b>سرویس تست رایگان شما آماده است!</b>\n\n"
+            f"• نام سرویس: <code>{order.panel_username or order.custom_name}</code>\n"
+            f"• مشخصات: {test_title}\n"
+            f"• مدت اعتبار: <b>{bot_settings.free_test_days} روز</b>\n\n"
+            f"🔗 <b>لینک اشتراک:</b>\n"
+            f"<code>{order.config_link}</code>",
+            reply_markup=get_service_actions_kb(order.id, order.config_link),
             parse_mode="HTML",
         )
         for aid in admin_ids:
@@ -95,9 +77,9 @@ async def handle_free_test_request(
                 await bot.send_message(
                     aid,
                     f"✅ <b>تحویل خودکار تست رایگان (#{order.id})</b>\n\n"
-                    f"📅 تاریخ: <b>{order_date}</b>\n"
-                    f"👤 کاربر: {message.from_user.full_name} (<code>{message.from_user.id}</code>)\n"
-                    f"🏷 نام سرویس در پنل: <code>{order.panel_username or order.custom_name}</code>",
+                    f"• تاریخ: <b>{order_date}</b>\n"
+                    f"• کاربر: {message.from_user.full_name} (<code>{message.from_user.id}</code>)\n"
+                    f"• نام سرویس: <code>{order.panel_username or order.custom_name}</code>",
                     parse_mode="HTML",
                 )
             except Exception:
@@ -105,10 +87,9 @@ async def handle_free_test_request(
         return
 
     await message.answer(
-        f"🎁 <b>درخواست تست رایگان ({test_title}) با موفقیت ثبت شد!</b>\n\n"
-        f"🏷 نام سرویس تست شما: <code>{order.custom_name}</code>\n"
-        f"📅 تاریخ ثبت: <b>{order_date}</b>\n"
-        f"⏳ لینک کانفیگ تست رایگان به زودی برای شما ارسال می‌شود و از بخش «🔍 سرویس (های) من» نیز قابل مشاهده خواهد بود.",
+        f"🎁 <b>درخواست تست رایگان ثبت شد!</b>\n\n"
+        f"• نام سرویس: <code>{order.custom_name}</code>\n"
+        f"⏳ لینک تست به زودی برایتان ارسال می‌شود.",
         reply_markup=get_main_menu_keyboard(
             show_free_test=False,
             free_test_title=test_title,
@@ -120,11 +101,10 @@ async def handle_free_test_request(
         try:
             await bot.send_message(
                 aid,
-                f"🎁 <b>درخواست تست رایگان جدید! (#{order.id})</b>\n\n"
-                f"📅 تاریخ: <b>{order_date}</b>\n"
-                f"👤 کاربر: {message.from_user.full_name} (<code>{message.from_user.id}</code>)\n"
-                f"🏷 نام سرویس: <code>{order.custom_name}</code>\n\n"
-                f"👇 روی دکمه زیر بزنید و لینک تست را بفرستید تا درجا برای کاربر فعال شود:",
+                f"🎁 <b>درخواست تست رایگان (#{order.id})</b>\n\n"
+                f"• تاریخ: <b>{order_date}</b>\n"
+                f"• کاربر: {message.from_user.full_name} (<code>{message.from_user.id}</code>)\n"
+                f"• نام سرویس: <code>{order.custom_name}</code>",
                 reply_markup=get_admin_send_config_kb(order.id),
                 parse_mode="HTML",
             )
@@ -132,25 +112,12 @@ async def handle_free_test_request(
             pass
 
 
-@router.message(
-    F.text == BTN_REFERRAL_GIFT,
-)
-async def show_referral_gift_menu(
-    message: Message,
-    bot: Bot,
-):
-    await show_referral_gift_menu_by_user(
-        message,
-        message.from_user.id,
-        bot,
-    )
+@router.message(F.text.in_({BTN_REFERRAL_GIFT, "🎉 اشتراک رایگان (دعوت دوستان)"}))
+async def show_referral_gift_menu(message: Message, bot: Bot):
+    await show_referral_gift_menu_by_user(message, message.from_user.id, bot)
 
 
-async def show_referral_gift_menu_by_user(
-    msg: Message,
-    user_id: int,
-    bot: Bot,
-):
+async def show_referral_gift_menu_by_user(msg: Message, user_id: int, bot: Bot):
     profile = await get_user_profile_data(user_id)
     bot_settings = await get_bot_settings()
 
@@ -164,10 +131,7 @@ async def show_referral_gift_menu_by_user(
     bot_username = bot_info.username or getattr(settings, 'BOT_USERNAME', 'Bot')
     invite_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
 
-    req_count = max(
-        1,
-        bot_settings.referral_required_count,
-    )
+    req_count = max(1, bot_settings.referral_required_count)
     gift_title = bot_settings.referral_gift_title
     m10_title = bot_settings.referral_milestone_10_title
     m20_title = bot_settings.referral_milestone_20_title
@@ -178,16 +142,15 @@ async def show_referral_gift_menu_by_user(
     remaining_for_next = req_count - current_cycle_progress
 
     text = (
-        f"🎉 <b>اشتراک رایگان با دعوت دوستان (بدون محدودیت کاربر)</b>\n\n"
-        f"🎁 <b>جدول جوایز دعوت شما:</b>\n"
-        f"🔹 به ازای <b>هر {req_count} دعوت معتبر</b> (۳، ۶، ۹، ۱۲، ۱۵، ۱۸ و...): <b>{gift_title}</b>\n"
-        f"🔥 جایزه ویژه <b>دهمین دعوت (۱۰ نفر)</b>: <b>{m10_title}</b> (سوای جوایز قبلی!)\n"
-        f"💎 جایزه ویژه <b>بیستمین دعوت (۲۰ نفر)</b>: <b>{m20_title}</b> (سوای جوایز قبلی!)\n"
-        f"⏳ <i>زمان اعتبار تمام هدایا از لحظه اولین اتصال (On Hold) شروع می‌شود!</i>\n\n"
-        f"📊 کل دعوت‌های معتبر شما: <b>{total_refs} نفر</b>\n"
-        f"🔄 پیشرفت چرخه ۳تایی فعلی: <b>{current_cycle_progress}/{req_count}</b> (مانده: {remaining_for_next} دعوت)\n"
-        f"🎁 کل هدیه‌های دریافت‌شده: <b>{gifts_received} اشتراک</b>\n\n"
-        f"🔗 لینک اختصاصی دعوت تو:\n"
+        f"🎉 <b>دریافت اشتراک رایگان با دعوت دوستان</b>\n\n"
+        f"🎁 <b>جوایز دعوت:</b>\n"
+        f"• به ازای هر <b>{req_count} دعوت</b>: <b>{gift_title}</b>\n"
+        f"• پاداش ویژه <b>نفر ۱۰ام</b>: <b>{m10_title}</b>\n"
+        f"• پاداش ویژه <b>نفر ۲۰ام</b>: <b>{m20_title}</b>\n\n"
+        f"📊 کل دعوت‌های شما: <b>{total_refs} نفر</b>\n"
+        f"⏳ مانده تا هدیه بعدی: <b>{remaining_for_next} دعوت</b>\n"
+        f"🎁 هدیه‌های دریافتی: <b>{gifts_received} اشتراک</b>\n\n"
+        f"🔗 <b>لینک دعوت اختصاصی شما:</b>\n"
         f"<code>{invite_link}</code>"
     )
 
@@ -201,31 +164,21 @@ async def show_referral_gift_menu_by_user(
     )
 
 
-@router.callback_query(
-    F.data == "my_referrals_list",
-)
-async def show_my_referrals_callback(
-    callback: CallbackQuery,
-):
+@router.callback_query(F.data == "my_referrals_list")
+async def show_my_referrals_callback(callback: CallbackQuery):
     referrals = await get_user_referrals_list(callback.from_user.id)
     if not referrals:
         await callback.answer(
-            "شما هنوز هیچ کاربری را دعوت نکرده‌اید!",
+            "شما هنوز کاربری را دعوت نکرده‌اید.",
             show_alert=True,
         )
         return
 
-    text = "👥 <b>لیست آخرین کاربران دعوت شده توسط شما (به تاریخ شمسی):</b>\n➖➖➖➖➖➖➖➖➖➖\n"
+    text = "👥 <b>آخرین کاربران دعوت‌شده توسط شما:</b>\n\n"
     for idx, ref_user in enumerate(referrals, 1):
         name = ref_user.full_name or "کاربر تلگرام"
-        joined_jalali = format_jalali(
-            ref_user.created_at,
-            include_time=False,
-        )
+        joined_jalali = format_jalali(ref_user.created_at, include_time=False)
         text += f"{idx}. {name} (<code>{ref_user.telegram_id}</code>) | 📅 {joined_jalali}\n"
 
-    await callback.message.answer(
-        text,
-        parse_mode="HTML",
-    )
+    await callback.message.answer(text, parse_mode="HTML")
     await callback.answer()

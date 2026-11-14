@@ -16,10 +16,7 @@ from core.models import (
     SubscriptionOrder,
     RequiredChannel,
 )
-from core.pasarguard import (
-    create_user_from_template,
-    get_requests_proxies,
-)
+from core.pasarguard import create_user_from_template, get_requests_proxies
 
 
 def get_all_admin_ids_sync() -> list[int]:
@@ -40,10 +37,7 @@ def get_all_admin_ids_sync() -> list[int]:
     db_admins = TelegramUser.objects.filter(
         is_admin=True,
         is_banned=False,
-    ).values_list(
-        'telegram_id',
-        flat=True,
-    )
+    ).values_list('telegram_id', flat=True)
     admins.update(db_admins)
     return list(admins)
 
@@ -53,22 +47,19 @@ def get_all_admin_ids() -> list[int]:
     return get_all_admin_ids_sync()
 
 
-def build_service_actions_reply_markup_sync(
-    order_id: int,
-    config_link: str,
-) -> dict:
+def build_service_actions_reply_markup_sync(order_id: int, config_link: str) -> dict:
     clean_link = (config_link or "").strip()
     if 0 < len(clean_link) <= 256:
         return {
             "inline_keyboard": [
                 [
                     {
-                        "text": "📋 کپی لینک کانفیگ",
+                        "text": "📋 کپی لینک",
                         "copy_text": {"text": clean_link},
                         "style": "primary",
                     },
                     {
-                        "text": "📷 دریافت QR Code",
+                        "text": "📷 دریافت بارکد",
                         "callback_data": f"get_qr:{order_id}",
                         "style": "success",
                     },
@@ -79,7 +70,7 @@ def build_service_actions_reply_markup_sync(
         "inline_keyboard": [
             [
                 {
-                    "text": "📷 دریافت QR Code",
+                    "text": "📷 دریافت بارکد",
                     "callback_data": f"get_qr:{order_id}",
                     "style": "success",
                 }
@@ -115,10 +106,7 @@ def send_telegram_message_sync(
         return False
 
 
-def sync_user_bot_commands_sync(
-    telegram_id: int,
-    is_admin_user: bool,
-) -> bool:
+def sync_user_bot_commands_sync(telegram_id: int, is_admin_user: bool) -> bool:
     if not settings.BOT_TOKEN:
         return False
     base_api = f"https://api.telegram.org/bot{settings.BOT_TOKEN}"
@@ -129,12 +117,9 @@ def sync_user_bot_commands_sync(
                 json={
                     "commands": [
                         {"command": "start", "description": "شروع مجدد 🔄"},
-                        {"command": "admin", "description": "پنل مدیریت تلگرام 🛠"},
+                        {"command": "admin", "description": "پنل مدیریت 🛠"},
                     ],
-                    "scope": {
-                        "type": "chat",
-                        "chat_id": int(telegram_id),
-                    },
+                    "scope": {"type": "chat", "chat_id": int(telegram_id)},
                 },
                 timeout=6,
                 proxies=get_requests_proxies(),
@@ -143,12 +128,7 @@ def sync_user_bot_commands_sync(
 
         resp = requests.post(
             f"{base_api}/deleteMyCommands",
-            json={
-                "scope": {
-                    "type": "chat",
-                    "chat_id": int(telegram_id),
-                },
-            },
+            json={"scope": {"type": "chat", "chat_id": int(telegram_id)}},
             timeout=6,
             proxies=get_requests_proxies(),
         )
@@ -205,7 +185,7 @@ def fulfill_plan_order_for_user_sync(
             for aid in get_all_admin_ids_sync():
                 send_telegram_message_sync(
                     aid,
-                    f"⚠️ <b>خطا در ساخت خودکار کانفیگ سفارش #{order.id} در پاسارگارد:</b>\n"
+                    f"⚠️ <b>خطا در ساخت خودکار سفارش #{order.id} در پاسارگارد:</b>\n"
                     f"<code>{err}</code>\n\n"
                     f"سفارش در حالت انتظار قرار گرفت.",
                 )
@@ -223,31 +203,18 @@ def approve_transaction_sync(
         try:
             tx = (
                 Transaction.objects.select_for_update(of=('self',))
-                .select_related(
-                    'user',
-                    'target_plan',
-                )
+                .select_related('user', 'target_plan')
                 .get(id=tx_id)
             )
             if tx.is_processed:
-                return (
-                    False,
-                    "این فاکتور قبلاً پردازش شده است.",
-                    tx,
-                    None,
-                )
+                return False, "این فاکتور قبلاً پردازش شده است.", tx, None
 
             user = TelegramUser.objects.select_for_update().get(
                 telegram_id=tx.user.telegram_id,
             )
             tx.status = 'approved'
             tx.is_processed = True
-            tx.save(
-                update_fields=[
-                    'status',
-                    'is_processed',
-                ]
-            )
+            tx.save(update_fields=['status', 'is_processed'])
 
             user.wallet_balance += tx.amount
 
@@ -260,17 +227,10 @@ def approve_transaction_sync(
                 target_plan = tx.target_plan
                 sname = tx.target_custom_name or f"tg{user.telegram_id}"
 
-            user.save(
-                update_fields=['wallet_balance'],
-            )
+            user.save(update_fields=['wallet_balance'])
             tx.user = user
         except Transaction.DoesNotExist:
-            return (
-                False,
-                "فاکتور یافت نشد.",
-                None,
-                None,
-            )
+            return False, "فاکتور یافت نشد.", None, None
 
     auto_order = None
     if target_plan:
@@ -280,18 +240,11 @@ def approve_transaction_sync(
             custom_name=sname,
         )
 
-    return (
-        True,
-        "فاکتور تایید شد.",
-        tx,
-        auto_order,
-    )
+    return True, "فاکتور تایید شد.", tx, auto_order
 
 
 @sync_to_async
-def approve_transaction_by_id(
-    tx_id: int,
-):
+def approve_transaction_by_id(tx_id: int):
     return approve_transaction_sync(tx_id)
 
 
@@ -335,12 +288,7 @@ def upsert_telegram_user(
                 updated = True
             if updated:
                 user.save(
-                    update_fields=[
-                        'username',
-                        'full_name',
-                        'is_admin',
-                        'updated_at',
-                    ]
+                    update_fields=['username', 'full_name', 'is_admin', 'updated_at']
                 )
 
         can_bind_referrer = (
@@ -356,15 +304,10 @@ def upsert_telegram_user(
                     telegram_id=referrer_id,
                 )
                 bot_setting, _ = BotSetting.objects.get_or_create(id=1)
-                req_count = max(
-                    1,
-                    bot_setting.referral_required_count,
-                )
+                req_count = max(1, bot_setting.referral_required_count)
 
                 user.referred_by = referrer
-                user.save(
-                    update_fields=['referred_by'],
-                )
+                user.save(update_fields=['referred_by'])
 
                 referrer.valid_referrals_count += 1
                 curr_refs = referrer.valid_referrals_count
@@ -377,7 +320,7 @@ def upsert_telegram_user(
                             bot_setting.referral_gift_template_id,
                             bot_setting.referral_gift_title,
                             max(1, bot_setting.referral_gift_days),
-                            f"رسیدن به {curr_refs} دعوت موفق (ضریب {req_count})",
+                            f"رسیدن به {curr_refs} دعوت موفق",
                         )
                     )
 
@@ -387,7 +330,7 @@ def upsert_telegram_user(
                             bot_setting.referral_milestone_10_template_id or bot_setting.referral_gift_template_id,
                             bot_setting.referral_milestone_10_title,
                             max(1, bot_setting.referral_milestone_10_days),
-                            "جایزه ویژه دهمین دعوت موفق (۱۰ نفر)",
+                            "پاداش ویژه دهمین دعوت موفق",
                         )
                     )
                 elif curr_refs == 20:
@@ -396,17 +339,14 @@ def upsert_telegram_user(
                             bot_setting.referral_milestone_20_template_id or bot_setting.referral_gift_template_id,
                             bot_setting.referral_milestone_20_title,
                             max(1, bot_setting.referral_milestone_20_days),
-                            "جایزه ویژه بیستمین دعوت موفق (۲۰ نفر)",
+                            "پاداش ویژه بیستمین دعوت موفق",
                         )
                     )
 
                 if rewards_to_issue:
                     referrer.referral_gifts_received += len(rewards_to_issue)
                     referrer.save(
-                        update_fields=[
-                            'valid_referrals_count',
-                            'referral_gifts_received',
-                        ]
+                        update_fields=['valid_referrals_count', 'referral_gifts_received']
                     )
                     base_gift_seq = SubscriptionOrder.objects.filter(
                         user=referrer,
@@ -434,13 +374,11 @@ def upsert_telegram_user(
                             )
                         )
                 else:
-                    referrer.save(
-                        update_fields=['valid_referrals_count'],
-                    )
+                    referrer.save(update_fields=['valid_referrals_count'])
                     rem = req_count - (curr_refs % req_count)
                     rem_notification = (
                         referrer.telegram_id,
-                        full_name or 'کاربر تلگرام',
+                        full_name or 'کاربر جدید',
                         curr_refs,
                         rem,
                         bot_setting.referral_gift_title,
@@ -452,15 +390,15 @@ def upsert_telegram_user(
         ref_tid, fname, curr_refs, rem, g_title = rem_notification
         milestone_hint = ""
         if curr_refs < 10:
-            milestone_hint = f"\n🔥 همچنین فقط <b>{10 - curr_refs} دعوت دیگر</b> تا جایزه ویژه نفر دهم (۳۰ گیگ - ۱ هفته‌ای) باقی مانده!"
+            milestone_hint = f"\n🔥 <b>{10 - curr_refs} دعوت دیگر</b> تا پاداش ویژه نفر ۱۰ام"
         elif curr_refs < 20:
-            milestone_hint = f"\n🔥 همچنین فقط <b>{20 - curr_refs} دعوت دیگر</b> تا جایزه ویژه نفر بیستم (۱۰۰ گیگ - ۱ ماهه) باقی مانده!"
+            milestone_hint = f"\n🔥 <b>{20 - curr_refs} دعوت دیگر</b> تا پاداش ویژه نفر ۲۰ام"
 
         send_telegram_message_sync(
             ref_tid,
-            f"👥 <b>یک کاربر جدید ({fname}) با لینک دعوت شما عضو ربات شد!</b>\n"
-            f"📊 کل دعوت‌های شما: <b>{curr_refs} نفر</b>\n"
-            f"⏳ تنها <b>{rem} دعوت دیگر</b> تا دریافت اشتراک هدیه ({g_title}) باقی مانده است."
+            f"👥 <b>{fname}</b> با لینک دعوت شما عضو ربات شد!\n\n"
+            f"• کل دعوت‌های شما: <b>{curr_refs} نفر</b>\n"
+            f"• مانده تا هدیه بعدی ({g_title}): <b>{rem} دعوت</b>"
             f"{milestone_hint}",
         )
 
@@ -494,12 +432,12 @@ def upsert_telegram_user(
         if delivered:
             send_telegram_message_sync(
                 referrer.telegram_id,
-                f"🎉 <b>تبریک! {reason_label}!</b>\n\n"
-                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> برای شما صادر شد!\n"
-                f"⏳ مدت اعتبار: <b>{gift_days} روز (شروع از اولین اتصال)</b>\n\n"
-                f"🔗 <b>لینک کانفیگ / اشتراک شما:</b>\n"
-                f"<code>{gift_order.config_link}</code>\n\n"
-                f"💡 از دکمه‌های زیر می‌توانید لینک را کپی کنید یا QR Code آن را دریافت نمایید:",
+                f"🎉 <b>تبریک! {reason_label}</b>\n\n"
+                f"🎁 اشتراک هدیه شما فعال شد:\n"
+                f"• نام سرویس: <code>{gift_order.custom_name}</code>\n"
+                f"• مشخصات: <b>{gift_title}</b>\n\n"
+                f"🔗 <b>لینک اشتراک:</b>\n"
+                f"<code>{gift_order.config_link}</code>",
                 reply_markup=build_service_actions_reply_markup_sync(
                     gift_order.id,
                     gift_order.config_link,
@@ -508,37 +446,31 @@ def upsert_telegram_user(
             for aid in admin_ids:
                 send_telegram_message_sync(
                     aid,
-                    f"✅ <b>تحویل خودکار هدیه دعوت دوستان ({reason_label}) - سفارش #{gift_order.id}</b>\n"
-                    f"کاربر <code>{referrer.telegram_id}</code> هدیه <code>{gift_order.panel_username}</code> ({gift_title}) را دریافت کرد.",
+                    f"✅ <b>تحویل خودکار هدیه دعوت (#{gift_order.id})</b>\n"
+                    f"• کاربر: <code>{referrer.telegram_id}</code>\n"
+                    f"• سرویس: <code>{gift_order.panel_username}</code> ({gift_title})",
                 )
         else:
             send_telegram_message_sync(
                 referrer.telegram_id,
-                f"🎉 <b>تبریک! {reason_label}!</b>\n\n"
-                f"🎁 یک <b>اشتراک هدیه ({gift_title})</b> با نام <code>{gift_order.custom_name}</code> برای شما ثبت شد و به زودی لینک آن برایتان ارسال می‌گردد.",
+                f"🎉 <b>تبریک! {reason_label}</b>\n\n"
+                f"🎁 اشتراک هدیه ({gift_title}) با نام <code>{gift_order.custom_name}</code> ثبت شد و به زودی برایتان ارسال می‌شود.",
             )
             for aid in admin_ids:
                 send_telegram_message_sync(
                     aid,
-                    f"🎁 <b>هدیه دعوت دوستان ({reason_label}) ثبت شد! (سفارش #{gift_order.id})</b>\n"
-                    f"⚠️ <i>ساخت خودکار در پاسارگارد انجام نشد.</i>\n"
-                    f"کاربر: <code>{referrer.telegram_id}</code>",
+                    f"🎁 <b>هدیه دعوت ثبت شد (#{gift_order.id})</b>\n"
+                    f"• کاربر: <code>{referrer.telegram_id}</code>",
                 )
 
     return user, created
 
 
 @sync_to_async
-def get_user_profile_data(
-    telegram_id: int,
-):
-    user = TelegramUser.objects.get(
-        telegram_id=telegram_id,
-    )
+def get_user_profile_data(telegram_id: int):
+    user = TelegramUser.objects.get(telegram_id=telegram_id)
     bot_setting, _ = BotSetting.objects.get_or_create(id=1)
-    active_orders_count = user.orders.filter(
-        status='active',
-    ).count()
+    active_orders_count = user.orders.filter(status='active').count()
     hide_free_test = user.used_free_test or (not bot_setting.free_test_enabled)
     return {
         'telegram_id': user.telegram_id,
@@ -550,38 +482,26 @@ def get_user_profile_data(
         'valid_referrals_count': user.valid_referrals_count,
         'referral_gifts_received': user.referral_gifts_received,
         'active_orders_count': active_orders_count,
-        'created_at_jalali': format_jalali(
-            user.created_at,
-            include_time=False,
-        ),
+        'created_at_jalali': format_jalali(user.created_at, include_time=False),
     }
 
 
 @sync_to_async
 def get_bot_settings() -> BotSetting:
-    setting, _ = BotSetting.objects.get_or_create(
-        id=1,
-    )
+    setting, _ = BotSetting.objects.get_or_create(id=1)
     return setting
 
 
 @sync_to_async
 def get_rate_limit_runtime_config() -> tuple[int, set[int]]:
-    setting, _ = BotSetting.objects.get_or_create(
-        id=1,
-    )
-    limit = max(
-        5,
-        setting.rate_limit_per_minute,
-    )
+    setting, _ = BotSetting.objects.get_or_create(id=1)
+    limit = max(5, setting.rate_limit_per_minute)
     admin_ids = set(get_all_admin_ids_sync())
     return limit, admin_ids
 
 
 @sync_to_async
-def count_user_pending_receipts(
-    telegram_id: int,
-) -> int:
+def count_user_pending_receipts(telegram_id: int) -> int:
     return Transaction.objects.filter(
         user__telegram_id=telegram_id,
         status='pending_admin',
@@ -589,9 +509,7 @@ def count_user_pending_receipts(
 
 
 @sync_to_async
-def count_user_open_tickets(
-    telegram_id: int,
-) -> int:
+def count_user_open_tickets(telegram_id: int) -> int:
     return SupportTicket.objects.filter(
         user__telegram_id=telegram_id,
         status='open',
@@ -599,10 +517,7 @@ def count_user_open_tickets(
 
 
 @sync_to_async
-def set_bot_sticker(
-    field_name: str,
-    file_id: str,
-) -> bool:
+def set_bot_sticker(field_name: str, file_id: str) -> bool:
     allowed_fields = {
         'sticker_welcome',
         'sticker_account',
@@ -612,85 +527,44 @@ def set_bot_sticker(
     }
     if field_name not in allowed_fields:
         return False
-    setting, _ = BotSetting.objects.get_or_create(
-        id=1,
-    )
-    setattr(
-        setting,
-        field_name,
-        file_id,
-    )
-    setting.save(
-        update_fields=[field_name],
-    )
+    setting, _ = BotSetting.objects.get_or_create(id=1)
+    setattr(setting, field_name, file_id)
+    setting.save(update_fields=[field_name])
     return True
 
 
 @sync_to_async
-def create_support_ticket(
-    telegram_id: int,
-    message_text: str,
-) -> SupportTicket:
-    user = TelegramUser.objects.get(
-        telegram_id=telegram_id,
-    )
-    return SupportTicket.objects.create(
-        user=user,
-        user_message=message_text,
-    )
+def create_support_ticket(telegram_id: int, message_text: str) -> SupportTicket:
+    user = TelegramUser.objects.get(telegram_id=telegram_id)
+    return SupportTicket.objects.create(user=user, user_message=message_text)
 
 
 @sync_to_async
-def answer_support_ticket_by_id(
-    ticket_id: int,
-    reply_text: str,
-):
+def answer_support_ticket_by_id(ticket_id: int, reply_text: str):
     try:
-        ticket = SupportTicket.objects.select_related('user').get(
-            id=ticket_id,
-        )
+        ticket = SupportTicket.objects.select_related('user').get(id=ticket_id)
         ticket.admin_reply = reply_text
         ticket.status = 'answered'
         ticket.reply_sent = True
-        ticket.save(
-            update_fields=[
-                'admin_reply',
-                'status',
-                'reply_sent',
-            ]
-        )
+        ticket.save(update_fields=['admin_reply', 'status', 'reply_sent'])
         return True, ticket
     except SupportTicket.DoesNotExist:
         return False, None
 
 
 @sync_to_async
-def get_active_plans(
-    plan_type: str = None,
-):
-    qs = Plan.objects.filter(
-        is_active=True,
-    )
+def get_active_plans(plan_type: str = None):
+    qs = Plan.objects.filter(is_active=True)
     if plan_type:
-        qs = qs.filter(
-            plan_type=plan_type,
-        )
-    return list(
-        qs.order_by(
-            'sort_order',
-            'price',
-        )
-    )
+        qs = qs.filter(plan_type=plan_type)
+    return list(qs.order_by('sort_order', 'price'))
 
 
 @sync_to_async
 def get_distinct_active_plan_prices() -> list[int]:
     setting, _ = BotSetting.objects.get_or_create(id=1)
     if setting.wallet_preset_amounts:
-        raw_parts = re.split(
-            r'[,،\s]+',
-            setting.wallet_preset_amounts.strip(),
-        )
+        raw_parts = re.split(r'[,،\s]+', setting.wallet_preset_amounts.strip())
         custom_prices = []
         seen = set()
         for p in raw_parts:
@@ -703,40 +577,22 @@ def get_distinct_active_plan_prices() -> list[int]:
             return custom_prices
 
     prices = list(
-        Plan.objects.filter(
-            is_active=True,
-        )
-        .values_list(
-            'price',
-            flat=True,
-        )
+        Plan.objects.filter(is_active=True)
+        .values_list('price', flat=True)
         .distinct()
     )
     prices.sort()
     if prices:
         return prices
 
-    base = max(
-        10000,
-        setting.min_wallet_charge,
-    )
-    return [
-        base,
-        base * 2,
-        base * 5,
-        base * 10,
-    ]
+    base = max(10000, setting.min_wallet_charge)
+    return [base, base * 2, base * 5, base * 10]
 
 
 @sync_to_async
-def get_plan_by_id(
-    plan_id: int,
-):
+def get_plan_by_id(plan_id: int):
     try:
-        return Plan.objects.get(
-            id=plan_id,
-            is_active=True,
-        )
+        return Plan.objects.get(id=plan_id, is_active=True)
     except Plan.DoesNotExist:
         return None
 
@@ -748,15 +604,10 @@ def create_wallet_transaction(
     target_plan_id: int = None,
     target_custom_name: str = None,
 ) -> Transaction:
-    user = TelegramUser.objects.get(
-        telegram_id=telegram_id,
-    )
+    user = TelegramUser.objects.get(telegram_id=telegram_id)
     target_plan = None
     if target_plan_id:
-        target_plan = Plan.objects.filter(
-            id=target_plan_id,
-            is_active=True,
-        ).first()
+        target_plan = Plan.objects.filter(id=target_plan_id, is_active=True).first()
     return Transaction.objects.create(
         user=user,
         amount=amount,
@@ -767,14 +618,9 @@ def create_wallet_transaction(
 
 
 @sync_to_async
-def get_transaction_by_invoice(
-    invoice_number: str,
-):
+def get_transaction_by_invoice(invoice_number: str):
     try:
-        return Transaction.objects.select_related(
-            'user',
-            'target_plan',
-        ).get(
+        return Transaction.objects.select_related('user', 'target_plan').get(
             invoice_number=invoice_number,
         )
     except Transaction.DoesNotExist:
@@ -788,10 +634,7 @@ def update_transaction_receipt(
     receipt_text: str = None,
 ):
     try:
-        tx = Transaction.objects.select_related(
-            'user',
-            'target_plan',
-        ).get(
+        tx = Transaction.objects.select_related('user', 'target_plan').get(
             invoice_number=invoice_number,
         )
         tx.status = 'pending_admin'
@@ -806,162 +649,86 @@ def update_transaction_receipt(
 
 
 @sync_to_async
-def cancel_transaction_by_invoice(
-    invoice_number: str,
-):
+def cancel_transaction_by_invoice(invoice_number: str):
     try:
         tx = Transaction.objects.get(
             invoice_number=invoice_number,
             status='awaiting_receipt',
         )
         tx.status = 'canceled'
-        tx.save(
-            update_fields=['status'],
-        )
+        tx.save(update_fields=['status'])
         return True
     except Transaction.DoesNotExist:
         return False
 
 
 @sync_to_async
-def reject_transaction_by_id(
-    tx_id: int,
-    note: str = "رسید ارسالی معتبر نمی‌باشد.",
-):
+def reject_transaction_by_id(tx_id: int, note: str = "رسید ارسالی معتبر نیست."):
     try:
-        tx = Transaction.objects.select_related(
-            'user',
-            'target_plan',
-        ).get(
-            id=tx_id,
-        )
+        tx = Transaction.objects.select_related('user', 'target_plan').get(id=tx_id)
         if tx.is_processed:
-            return (
-                False,
-                "این فاکتور قبلاً پردازش شده است.",
-                tx,
-            )
+            return False, "این فاکتور قبلاً پردازش شده است.", tx
         tx.status = 'rejected'
         tx.admin_note = note
         tx.is_processed = True
-        tx.save(
-            update_fields=[
-                'status',
-                'admin_note',
-                'is_processed',
-            ]
-        )
-        return (
-            True,
-            "فاکتور رد شد.",
-            tx,
-        )
+        tx.save(update_fields=['status', 'admin_note', 'is_processed'])
+        return True, "فاکتور رد شد.", tx
     except Transaction.DoesNotExist:
-        return (
-            False,
-            "فاکتور یافت نشد.",
-            None,
-        )
+        return False, "فاکتور یافت نشد.", None
 
 
 @sync_to_async
-def process_plan_purchase(
-    telegram_id: int,
-    plan_id: int,
-    custom_name: str,
-):
+def process_plan_purchase(telegram_id: int, plan_id: int, custom_name: str):
     with db_transaction.atomic():
-        user = TelegramUser.objects.select_for_update().get(
-            telegram_id=telegram_id,
-        )
-        plan = Plan.objects.get(
-            id=plan_id,
-            is_active=True,
-        )
+        user = TelegramUser.objects.select_for_update().get(telegram_id=telegram_id)
+        plan = Plan.objects.get(id=plan_id, is_active=True)
 
         if user.wallet_balance < plan.price:
             deficit = plan.price - user.wallet_balance
-            return (
-                False,
-                "موجودی کافی نیست",
-                deficit,
-                None,
-            )
+            return False, "موجودی کافی نیست", deficit, None
 
         user.wallet_balance -= plan.price
-        user.save(
-            update_fields=['wallet_balance'],
-        )
+        user.save(update_fields=['wallet_balance'])
 
     order = fulfill_plan_order_for_user_sync(
         user=user,
         plan=plan,
         custom_name=custom_name,
     )
-    return (
-        True,
-        "خرید با موفقیت انجام شد",
-        0,
-        order,
-    )
+    return True, "خرید با موفقیت انجام شد", 0, order
 
 
 @sync_to_async
-def get_user_orders(
-    telegram_id: int,
-):
+def get_user_orders(telegram_id: int):
     return list(
-        SubscriptionOrder.objects.filter(
-            user__telegram_id=telegram_id,
-        )
+        SubscriptionOrder.objects.filter(user__telegram_id=telegram_id)
         .select_related('plan')
         .order_by('-created_at')
     )
 
 
 @sync_to_async
-def get_user_transactions(
-    telegram_id: int,
-):
+def get_user_transactions(telegram_id: int):
     return list(
-        Transaction.objects.filter(
-            user__telegram_id=telegram_id,
-        )
+        Transaction.objects.filter(user__telegram_id=telegram_id)
         .order_by('-created_at')[:10]
     )
 
 
 @sync_to_async
-def claim_free_test_order(
-    telegram_id: int,
-):
+def claim_free_test_order(telegram_id: int):
     bot_setting, _ = BotSetting.objects.get_or_create(id=1)
     if not bot_setting.free_test_enabled:
-        return (
-            False,
-            "disabled",
-            None,
-        )
+        return False, "disabled", None
 
     with db_transaction.atomic():
-        user = TelegramUser.objects.select_for_update().get(
-            telegram_id=telegram_id,
-        )
+        user = TelegramUser.objects.select_for_update().get(telegram_id=telegram_id)
         if user.used_free_test:
-            return (
-                False,
-                "already_used",
-                None,
-            )
+            return False, "already_used", None
 
         user.used_free_test = True
         user.free_test_count += 1
-        user.save(
-            update_fields=[
-                'used_free_test',
-                'free_test_count',
-            ],
-        )
+        user.save(update_fields=['used_free_test', 'free_test_count'])
 
         test_seq = user.free_test_count
         test_name = f"test_{telegram_id}_{test_seq}"
@@ -981,10 +748,7 @@ def claim_free_test_order(
             sequence_number=test_seq,
         )
         if success and sub_url:
-            days = max(
-                1,
-                bot_setting.free_test_days,
-            )
+            days = max(1, bot_setting.free_test_days)
             order.config_link = sub_url.strip()
             order.panel_username = panel_username
             order.status = 'active'
@@ -999,59 +763,32 @@ def claim_free_test_order(
                     'expires_at',
                 ]
             )
-            return (
-                True,
-                "instant",
-                order,
-            )
+            return True, "instant", order
 
-    return (
-        True,
-        "manual",
-        order,
-    )
+    return True, "manual", order
 
 
 @sync_to_async
-def get_user_referrals_list(
-    telegram_id: int,
-):
+def get_user_referrals_list(telegram_id: int):
     return list(
-        TelegramUser.objects.filter(
-            referred_by__telegram_id=telegram_id,
-        )
+        TelegramUser.objects.filter(referred_by__telegram_id=telegram_id)
         .order_by('-created_at')[:15]
     )
 
 
 @sync_to_async
-def get_order_by_id(
-    order_id: int,
-):
+def get_order_by_id(order_id: int):
     try:
-        return SubscriptionOrder.objects.select_related(
-            'user',
-            'plan',
-        ).get(
-            id=order_id,
-        )
+        return SubscriptionOrder.objects.select_related('user', 'plan').get(id=order_id)
     except SubscriptionOrder.DoesNotExist:
         return None
 
 
 @sync_to_async
-def deliver_order_config_by_id(
-    order_id: int,
-    config_link: str,
-):
+def deliver_order_config_by_id(order_id: int, config_link: str):
     with db_transaction.atomic():
         try:
-            order = SubscriptionOrder.objects.select_related(
-                'user',
-                'plan',
-            ).get(
-                id=order_id,
-            )
+            order = SubscriptionOrder.objects.select_related('user', 'plan').get(id=order_id)
             order.config_link = config_link.strip()
             order.status = 'active'
             order.notified_user = True
@@ -1059,23 +796,12 @@ def deliver_order_config_by_id(
             if order.plan:
                 days = order.plan.duration_days
             elif order.order_type == 'referral_gift':
-                days = max(
-                    1,
-                    bot_setting.referral_gift_days,
-                )
+                days = max(1, bot_setting.referral_gift_days)
             else:
-                days = max(
-                    1,
-                    bot_setting.free_test_days,
-                )
+                days = max(1, bot_setting.free_test_days)
             order.expires_at = timezone.now() + timedelta(days=days)
             order.save(
-                update_fields=[
-                    'config_link',
-                    'status',
-                    'notified_user',
-                    'expires_at',
-                ]
+                update_fields=['config_link', 'status', 'notified_user', 'expires_at']
             )
             return True, order
         except SubscriptionOrder.DoesNotExist:
@@ -1085,13 +811,8 @@ def deliver_order_config_by_id(
 @sync_to_async
 def get_pending_orders_list():
     return list(
-        SubscriptionOrder.objects.filter(
-            status='pending_config',
-        )
-        .select_related(
-            'user',
-            'plan',
-        )
+        SubscriptionOrder.objects.filter(status='pending_config')
+        .select_related('user', 'plan')
         .order_by('created_at')[:15]
     )
 
@@ -1099,23 +820,14 @@ def get_pending_orders_list():
 @sync_to_async
 def get_admin_dashboard_stats():
     total_users = TelegramUser.objects.count()
-    pending_tx = Transaction.objects.filter(
-        status='pending_admin',
-    ).count()
-    pending_orders = SubscriptionOrder.objects.filter(
-        status='pending_config',
-    ).count()
-    active_orders = SubscriptionOrder.objects.filter(
-        status='active',
-    ).count()
-    open_tickets = SupportTicket.objects.filter(
-        status='open',
-    ).count()
-    total_revenue = Transaction.objects.filter(
-        status='approved',
-    ).aggregate(
-        total=Sum('amount'),
-    )['total'] or 0
+    pending_tx = Transaction.objects.filter(status='pending_admin').count()
+    pending_orders = SubscriptionOrder.objects.filter(status='pending_config').count()
+    active_orders = SubscriptionOrder.objects.filter(status='active').count()
+    open_tickets = SupportTicket.objects.filter(status='open').count()
+    total_revenue = (
+        Transaction.objects.filter(status='approved').aggregate(total=Sum('amount'))['total']
+        or 0
+    )
 
     return {
         'total_users': total_users,
@@ -1129,12 +841,7 @@ def get_admin_dashboard_stats():
 
 def get_all_active_user_ids_sync() -> list[int]:
     return list(
-        TelegramUser.objects.filter(
-            is_banned=False,
-        ).values_list(
-            'telegram_id',
-            flat=True,
-        )
+        TelegramUser.objects.filter(is_banned=False).values_list('telegram_id', flat=True)
     )
 
 
@@ -1146,10 +853,5 @@ def get_all_active_user_ids():
 @sync_to_async
 def get_active_required_channels():
     return list(
-        RequiredChannel.objects.filter(
-            is_active=True,
-        ).order_by(
-            'sort_order',
-            'id',
-        )
+        RequiredChannel.objects.filter(is_active=True).order_by('sort_order', 'id')
     )

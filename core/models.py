@@ -6,18 +6,10 @@ from core.jalali import get_current_jalali_year_month
 
 
 def generate_invoice_number():
-    return str(
-        random.randint(
-            100000,
-            999999,
-        )
-    )
+    return str(random.randint(100000, 999999))
 
 
-def receipt_image_upload_to(
-    instance,
-    filename: str,
-) -> str:
+def receipt_image_upload_to(instance, filename: str) -> str:
     j_year, j_month = get_current_jalali_year_month()
     ext = os.path.splitext(filename)[1].lower() or ".jpg"
     inv = instance.invoice_number or "receipt"
@@ -60,7 +52,6 @@ class TelegramUser(models.Model):
         verbose_name="ادمین ربات؟",
         help_text="با فعال کردن این تیک، کاربر در تلگرام به منوی /admin، تایید رسیدها و پاسخ به تیکت‌ها دسترسی خواهد داشت.",
     )
-
     referred_by = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -77,7 +68,6 @@ class TelegramUser(models.Model):
         default=0,
         verbose_name="تعداد هدایای رفرال دریافتی",
     )
-
     is_banned = models.BooleanField(
         default=False,
         verbose_name="مسدود شده؟",
@@ -102,14 +92,14 @@ class TelegramUser(models.Model):
 
 class Plan(models.Model):
     PLAN_TYPES = (
-        ('direct', '⚡ اشتراک دایرکت (حجمی و نامحدود)'),
-        ('tunnel', '🛡 اشتراک تانل (حجمی)'),
+        ('direct', '⚡ اشتراک دایرکت'),
+        ('tunnel', '🛡 اشتراک تانل'),
     )
     plan_type = models.CharField(
         max_length=20,
         choices=PLAN_TYPES,
         default='direct',
-        verbose_name="دسته‌بندی سرور (دایرکت / تانل)",
+        verbose_name="دسته‌بندی سرور",
     )
     title = models.CharField(
         max_length=150,
@@ -119,12 +109,12 @@ class Plan(models.Model):
         null=True,
         blank=True,
         verbose_name="شناسه قالب پاسارگارد (Template ID)",
-        help_text="عدد ID قالب مربوط به این پلن در بخش User Templates پنل پاسارگارد را وارد کنید.",
+        help_text="عدد ID قالب مربوط به این پلن در پنل پاسارگارد را وارد کنید.",
     )
     volume_gb = models.PositiveIntegerField(
         default=0,
         verbose_name="حجم (گیگابایت)",
-        help_text="اگر پلن حجمی است عدد گیگ (مثلاً 30) را بنویسید. اگر پلن نامحدود است عدد 0 بگذارید.",
+        help_text="برای پلن‌های حجمی عدد گیگ و برای نامحدود عدد 0 وارد کنید.",
     )
     duration_days = models.PositiveIntegerField(
         default=30,
@@ -133,7 +123,7 @@ class Plan(models.Model):
     max_users = models.PositiveIntegerField(
         default=0,
         verbose_name="تعداد کاربر مجاز",
-        help_text="برای پلن‌های حجمی بدون محدودیت دستگاه عدد 0 بگذارید و برای نامحدودها تعداد کاربر (مثلاً 2 یا 3) را وارد کنید.",
+        help_text="برای پلن‌های حجمی عدد 0 و برای نامحدودها تعداد کاربر (مثلاً 2 یا 3) را وارد کنید.",
     )
     price = models.PositiveBigIntegerField(
         verbose_name="قیمت (تومان)",
@@ -150,11 +140,7 @@ class Plan(models.Model):
     class Meta:
         verbose_name = "پلن فروش"
         verbose_name_plural = "پلن‌های فروش"
-        ordering = [
-            'plan_type',
-            'sort_order',
-            'price',
-        ]
+        ordering = ['plan_type', 'sort_order', 'price']
 
     def __str__(self):
         return f"[{self.get_plan_type_display()}] {self.title} - {self.price:,} تومان"
@@ -162,11 +148,11 @@ class Plan(models.Model):
 
 class Transaction(models.Model):
     STATUS_CHOICES = (
-        ('awaiting_receipt', 'در انتظار ارسال رسید توسط کاربر'),
+        ('awaiting_receipt', 'در انتظار ارسال رسید'),
         ('pending_admin', 'در انتظار بررسی ادمین ⏳'),
         ('approved', 'تایید و شارژ شده ✅'),
         ('rejected', 'رد شده ❌'),
-        ('canceled', 'لغو شده توسط کاربر'),
+        ('canceled', 'لغو شده'),
     )
     invoice_number = models.CharField(
         max_length=20,
@@ -218,7 +204,7 @@ class Transaction(models.Model):
         max_length=255,
         null=True,
         blank=True,
-        verbose_name="توضیحات ادمین (علت رد و...)",
+        verbose_name="توضیحات ادمین",
     )
     is_processed = models.BooleanField(
         default=False,
@@ -240,13 +226,13 @@ class Transaction(models.Model):
 
 class SubscriptionOrder(models.Model):
     ORDER_TYPES = (
-        ('purchase', 'خرید عادی'),
+        ('purchase', 'خرید اشتراک'),
         ('free_test', 'تست رایگان'),
         ('referral_gift', 'هدیه دعوت دوستان'),
     )
     STATUS_CHOICES = (
-        ('pending_config', 'در انتظار صدور لینک کانفیگ ⏳'),
-        ('active', 'فعال و تحویل داده شده ✅'),
+        ('pending_config', 'در انتظار صدور لینک ⏳'),
+        ('active', 'فعال ✅'),
         ('expired', 'منقضی شده 🔚'),
     )
     user = models.ForeignKey(
@@ -293,8 +279,8 @@ class SubscriptionOrder(models.Model):
     config_link = models.TextField(
         null=True,
         blank=True,
-        verbose_name="لینک کانفیگ / اشتراک",
-        help_text="به صورت خودکار توسط پنل پاسارگارد ساخته می‌شود (در صورت نیاز می‌توانید دستی هم وارد کنید).",
+        verbose_name="لینک اشتراک",
+        help_text="به صورت خودکار توسط پنل پاسارگارد ساخته می‌شود.",
     )
     status = models.CharField(
         max_length=20,
@@ -321,7 +307,7 @@ class SubscriptionOrder(models.Model):
     )
 
     class Meta:
-        verbose_name = "سفارش سرویس (کانفیگ)"
+        verbose_name = "سفارش سرویس"
         verbose_name_plural = "سفارش‌ها و کانفیگ‌های کاربران"
         ordering = ['-created_at']
 
@@ -343,7 +329,7 @@ class SubscriptionOrder(models.Model):
 
 class SupportTicket(models.Model):
     STATUS_CHOICES = (
-        ('open', 'در انتظار پاسخ ادمین 🟡'),
+        ('open', 'در انتظار پاسخ 🟡'),
         ('answered', 'پاسخ داده شده ✅'),
         ('closed', 'بسته شده 🔒'),
     )
@@ -389,18 +375,18 @@ class SupportTicket(models.Model):
 class RequiredChannel(models.Model):
     title = models.CharField(
         max_length=100,
-        default="📢 عضویت در کانال رسمی",
+        default="📢 عضویت در کانال Pomo VPN",
         verbose_name="عنوان روی دکمه شیشه‌ای",
     )
     chat_id = models.CharField(
         max_length=100,
         unique=True,
-        verbose_name="یوزرنیم یا آیدی کانال (مثلاً @pomov2ray)",
-        help_text="یوزرنیم کانال با @ (مثل @pomov2ray) یا آیدی عددی کانال خصوصی (مثل -100123456789). حتماً ربات را در کانال ادمین کنید.",
+        verbose_name="یوزرنیم یا آیدی کانال (مثلاً @pomo_vpn)",
+        help_text="یوزرنیم کانال با @ یا آیدی عددی کانال خصوصی. حتماً ربات را در کانال ادمین کنید.",
     )
     invite_link = models.URLField(
-        default="https://t.me/pomov2ray",
-        verbose_name="لینک عضویت کانال (مثلاً https://t.me/pomov2ray)",
+        default="https://t.me/pomo_vpn",
+        verbose_name="لینک عضویت کانال",
     )
     is_active = models.BooleanField(
         default=True,
@@ -414,10 +400,7 @@ class RequiredChannel(models.Model):
     class Meta:
         verbose_name = "کانال جوین اجباری"
         verbose_name_plural = "کانال‌های جوین اجباری"
-        ordering = [
-            'sort_order',
-            'id',
-        ]
+        ordering = ['sort_order', 'id']
 
     def __str__(self):
         return f"{self.title} ({self.chat_id})"
@@ -425,7 +408,7 @@ class RequiredChannel(models.Model):
 
 class BotSetting(models.Model):
     welcome_text = models.TextField(
-        default="درود، کاربر گرامی خوش اومدی!",
+        default="سلام، به ربات فروش اشتراک خوش آمدید! 👋\nاز منوی زیر گزینه مورد نظر خود را انتخاب کنید:",
         verbose_name="متن خوش‌آمدگویی استارت ربات (/start)",
     )
     card_number = models.CharField(
@@ -448,47 +431,42 @@ class BotSetting(models.Model):
         null=True,
         default="49000,98000,148000,398000,89000,178000,268000,439000",
         verbose_name="مبالغ پیشنهادی شارژ کیف پول (اختیاری)",
-        help_text="اگر خالی باشد، به صورت خودکار از قیمت پلن‌های فعال ساخته می‌شود. برای تنظیم دستی، مبالغ را با کاما جدا کنید.",
+        help_text="مبالغ را با کاما جدا کنید.",
     )
     max_receipt_size_mb = models.PositiveIntegerField(
         default=3,
         verbose_name="حداکثر حجم مجاز فایل رسید (مگابایت)",
-        help_text="کاربران نمی‌توانند تصویری حجیم‌تر از این مقدار (به مگابایت) برای رسید ارسال کنند.",
     )
     receipt_cooldown_seconds = models.PositiveIntegerField(
         default=5,
         verbose_name="فاصله زمانی مجاز بین ارسال رسیدها (ثانیه)",
-        help_text="حداقل زمان انتظار (بر حسب ثانیه) بین دو تلاش کاربر برای ارسال رسید.",
     )
     max_pending_receipts = models.PositiveIntegerField(
         default=3,
         verbose_name="حداکثر رسید در انتظار تایید همزمان برای هر کاربر",
-        help_text="جلوگیری از اسپم فیش واریزی قبل از تعیین تکلیف رسیدهای قبلی توسط ادمین.",
     )
     max_open_tickets = models.PositiveIntegerField(
         default=2,
         verbose_name="حداکثر تیکت باز همزمان برای هر کاربر",
-        help_text="جلوگیری از اسپم تیکت پشتیبانی قبل از پاسخ‌گویی ادمین.",
     )
     rate_limit_per_minute = models.PositiveIntegerField(
         default=25,
-        verbose_name="محدودیت تعداد درخواست کاربر در دقیقه (Rate Limit)",
-        help_text="حداکثر تعداد پیام یا کلیک مجاز هر کاربر در هر دقیقه برای جلوگیری از اسپم و فلود.",
+        verbose_name="محدودیت تعداد درخواست کاربر در دقیقه",
     )
     support_username = models.CharField(
         max_length=100,
-        default="Pomov2raySupport",
+        default="Pomoadmin",
         verbose_name="آیدی پشتیبان (بدون @)",
     )
 
     backup_enabled = models.BooleanField(
         default=True,
-        verbose_name="فعال بودن بکاپ خودکار و ارسال به ادمین‌ها؟",
+        verbose_name="فعال بودن بکاپ خودکار؟",
     )
     backup_interval_minutes = models.PositiveIntegerField(
         default=5,
         verbose_name="فاصله زمانی بکاپ خودکار (دقیقه)",
-        help_text="مثلاً 5 برای هر ۵ دقیقه، 60 برای هر ۱ ساعت، 720 برای هر ۱۲ ساعت، 1440 برای هر ۲۴ ساعت.",
+        help_text="مثلاً 5 برای هر ۵ دقیقه، 60 برای هر ۱ ساعت، 720 برای هر ۱۲ ساعت.",
     )
     last_backup_at = models.DateTimeField(
         null=True,
@@ -508,14 +486,12 @@ class BotSetting(models.Model):
         null=True,
         default="https://netmitvip.ir:8000",
         verbose_name="آدرس پنل پاسارگارد (Base URL)",
-        help_text="مثلاً https://netmitvip.ir:8000 (بدون اسلش انتهایی)",
     )
     pasarguard_api_key = models.CharField(
         max_length=255,
         blank=True,
         null=True,
         verbose_name="کلید ارتباطی پاسارگارد (API Key)",
-        help_text="کلید ساخته شده در بخش API Keys پنل پاسارگارد.",
     )
     pasarguard_verify_ssl = models.BooleanField(
         default=False,
@@ -530,7 +506,7 @@ class BotSetting(models.Model):
         default=9,
         null=True,
         blank=True,
-        verbose_name="شناسه قالب تست رایگان در پاسارگارد (Template ID)",
+        verbose_name="شناسه قالب تست رایگان در پاسارگارد",
     )
     free_test_title = models.CharField(
         max_length=100,
@@ -546,7 +522,7 @@ class BotSetting(models.Model):
         default=8,
         null=True,
         blank=True,
-        verbose_name="شناسه قالب هدیه دعوت ۳ نفر در پاسارگارد (Template ID)",
+        verbose_name="شناسه قالب هدیه دعوت ۳ نفر در پاسارگارد",
     )
     referral_required_count = models.PositiveIntegerField(
         default=3,
@@ -565,7 +541,7 @@ class BotSetting(models.Model):
     referral_milestone_10_template_id = models.PositiveIntegerField(
         null=True,
         blank=True,
-        verbose_name="شناسه قالب هدیه ویژه نفر ۱۰ام در پاسارگارد (Template ID)",
+        verbose_name="شناسه قالب هدیه ویژه نفر ۱۰ام در پاسارگارد",
     )
     referral_milestone_10_title = models.CharField(
         max_length=100,
@@ -580,7 +556,7 @@ class BotSetting(models.Model):
     referral_milestone_20_template_id = models.PositiveIntegerField(
         null=True,
         blank=True,
-        verbose_name="شناسه قالب هدیه ویژه نفر ۲۰ام در پاسارگارد (Template ID)",
+        verbose_name="شناسه قالب هدیه ویژه نفر ۲۰ام در پاسارگارد",
     )
     referral_milestone_20_title = models.CharField(
         max_length=100,
@@ -599,24 +575,24 @@ class BotSetting(models.Model):
     )
 
     tutorial_android_url = models.CharField(
-        default="https://t.me/Telegram",
+        default="https://t.me/pomo_vpn",
         verbose_name="لینک آموزش اندروید",
     )
     tutorial_ios_url = models.CharField(
-        default="https://t.me/Telegram",
+        default="https://t.me/pomo_vpn",
         verbose_name="لینک آموزش آیفون (iOS)",
     )
     tutorial_windows_url = models.CharField(
-        default="https://t.me/Telegram",
+        default="https://t.me/pomo_vpn",
         verbose_name="لینک آموزش ویندوز",
     )
 
     buy_menu_text = models.TextField(
         default=(
-            "🛒 <b>خرید سرویس اشتراک V2Ray</b>\n\n"
-            "لطفاً نوع سرور و اشتراک مد نظر خود را انتخاب کنید:\n\n"
-            "⚡ <b>حجمی دایرکت (Direct):</b> شامل بسته‌های حجمی و نامحدود با اتصال مستقیم و سرعت بالا.\n"
-            "🛡 <b>حجمی تانل (Tunnel):</b> سرورهای تانل‌شده (شامل تانل + دایرکت) با پایداری حداکثری در تمامی اپراتورها."
+            "🛒 <b>خرید اشتراک</b>\n\n"
+            "نوع سرویس مورد نظر خود را انتخاب کنید:\n\n"
+            "⚡ <b>سرویس دایرکت:</b> اتصال مستقیم با سرعت بالا (شامل بسته‌های حجمی و نامحدود)\n"
+            "🛡 <b>سرویس تانل:</b> پایداری بالا در تمام اپراتورها و شرایط اختلال"
         ),
         verbose_name="متن راهنمای منوی خرید سرویس",
     )
@@ -632,23 +608,21 @@ class BotSetting(models.Model):
     )
     volume_plan_header = models.TextField(
         default=(
-            "⚡ <b>فیلترشکن پرسرعت دایرکت (Direct)</b>\n"
-            "• پرسرعت و متصل در تمامی اپراتورها\n"
-            "• شامل بسته‌های حجمی (بدون محدودیت کاربر) و نامحدود\n"
-            "• شروع زمان اعتبار از اولین اتصال (On Hold)\n"
-            "• پشتیبانی آنلاین ۲۴ ساعته + گارانتی"
+            "⚡ <b>اشتراک‌های دایرکت</b>\n\n"
+            "• سرعت بالا و مناسب تمام اپراتورها\n"
+            "• بدون محدودیت دستگاه برای بسته‌های حجمی\n"
+            "• شروع زمان اعتبار از اولین اتصال"
         ),
-        verbose_name="متن بالای پلن‌های دایرکت (Direct)",
+        verbose_name="متن بالای پلن‌های دایرکت",
     )
     unlimited_plan_header = models.TextField(
         default=(
-            "🛡 <b>فیلترشکن تانل شده (Tunnel + Direct)</b>\n"
-            "• پایداری حداکثری حتی در شرایط اختلال شدید (شامل سرورهای تانل و دایرکت)\n"
-            "• سرعت و پینگ عالی بدون محدودیت تعداد کاربر\n"
-            "• شروع زمان اعتبار از اولین اتصال (On Hold)\n"
-            "• پشتیبانی آنلاین ۲۴ ساعته + گارانتی"
+            "🛡 <b>اشتراک‌های تانل</b>\n\n"
+            "• پایداری بالا حتی در زمان اختلال شدید\n"
+            "• شامل سرورهای تانل و دایرکت به صورت همزمان\n"
+            "• بدون محدودیت دستگاه و شروع از اولین اتصال"
         ),
-        verbose_name="متن بالای پلن‌های تانل (Tunnel)",
+        verbose_name="متن بالای پلن‌های تانل",
     )
 
     sticker_welcome = models.CharField(
@@ -698,7 +672,6 @@ class BroadcastMessage(models.Model):
     is_sent = models.BooleanField(
         default=False,
         verbose_name="وضعیت ارسال",
-        help_text="پس از پایان ارسال در پس‌زمینه، تیک می‌خورد.",
     )
     success_count = models.PositiveIntegerField(
         default=0,

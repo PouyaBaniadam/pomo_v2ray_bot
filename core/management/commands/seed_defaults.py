@@ -1,11 +1,7 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.models import Q
-from core.models import (
-    Plan,
-    BotSetting,
-    RequiredChannel,
-)
+from core.models import Plan, BotSetting, RequiredChannel
 from core.pasarguard import (
     fetch_template_name_to_id_map,
     create_or_update_user_template,
@@ -15,6 +11,29 @@ from core.pasarguard import (
 PRESET_WALLET_AMOUNTS = "49000,98000,148000,398000,89000,178000,268000,439000"
 DEFAULT_CHANNEL_URL = "https://t.me/pomo_vpn"
 DEFAULT_SUPPORT_USERNAME = "Pomoadmin"
+
+CLEAN_WELCOME_TEXT = (
+    "سلام، به ربات فروش اشتراک خوش آمدید! 👋\n"
+    "از منوی زیر گزینه مورد نظر خود را انتخاب کنید:"
+)
+CLEAN_BUY_MENU_TEXT = (
+    "🛒 <b>خرید اشتراک</b>\n\n"
+    "نوع سرویس مورد نظر خود را انتخاب کنید:\n\n"
+    "⚡ <b>سرویس دایرکت:</b> اتصال مستقیم با سرعت بالا (شامل بسته‌های حجمی و نامحدود)\n"
+    "🛡 <b>سرویس تانل:</b> پایداری بالا در تمام اپراتورها و شرایط اختلال"
+)
+CLEAN_DIRECT_HEADER = (
+    "⚡ <b>اشتراک‌های دایرکت</b>\n\n"
+    "• سرعت بالا و مناسب تمام اپراتورها\n"
+    "• بدون محدودیت دستگاه برای بسته‌های حجمی\n"
+    "• شروع زمان اعتبار از اولین اتصال"
+)
+CLEAN_TUNNEL_HEADER = (
+    "🛡 <b>اشتراک‌های تانل</b>\n\n"
+    "• پایداری بالا حتی در زمان اختلال شدید\n"
+    "• شامل سرورهای تانل و دایرکت به صورت همزمان\n"
+    "• بدون محدودیت دستگاه و شروع از اولین اتصال"
+)
 
 DEFAULT_STICKERS = {
     "sticker_welcome": "CAACAgIAAxkBAAICKmr11cKbMrKSP8a65Lzz86FTalYuAAIxNAAC6BugStKvp8RmJqK8PQQ",
@@ -26,16 +45,16 @@ DEFAULT_STICKERS = {
 
 
 class Command(BaseCommand):
-    help = "Seed initial bot settings, stickers, PasarGuard templates (On Hold, group bindings, tiered gifts), and the 10 default plans."
+    help = "Seed initial bot settings, stickers, PasarGuard templates, and the 10 default plans."
 
-    def handle(
-        self,
-        *args,
-        **options,
-    ):
+    def handle(self, *args, **options):
         setting, _ = BotSetting.objects.get_or_create(
             id=1,
             defaults={
+                'welcome_text': CLEAN_WELCOME_TEXT,
+                'buy_menu_text': CLEAN_BUY_MENU_TEXT,
+                'volume_plan_header': CLEAN_DIRECT_HEADER,
+                'unlimited_plan_header': CLEAN_TUNNEL_HEADER,
                 'pasarguard_base_url': settings.PASARGUARD_BASE_URL or 'https://netmitvip.ir:8000',
                 'pasarguard_api_key': settings.PASARGUARD_API_KEY or '',
                 'pasarguard_verify_ssl': settings.PASARGUARD_VERIFY_SSL,
@@ -79,6 +98,19 @@ class Command(BaseCommand):
         if setting.support_username in ('Pomov2raySupport', '', None):
             setting.support_username = DEFAULT_SUPPORT_USERNAME
             updated_fields.append('support_username')
+        if setting.welcome_text == 'درود، کاربر گرامی خوش اومدی!':
+            setting.welcome_text = CLEAN_WELCOME_TEXT
+            updated_fields.append('welcome_text')
+        if '(Direct)' in (setting.buy_menu_text or ''):
+            setting.buy_menu_text = CLEAN_BUY_MENU_TEXT
+            updated_fields.append('buy_menu_text')
+        if '(Direct)' in (setting.volume_plan_header or ''):
+            setting.volume_plan_header = CLEAN_DIRECT_HEADER
+            updated_fields.append('volume_plan_header')
+        if '(Tunnel' in (setting.unlimited_plan_header or ''):
+            setting.unlimited_plan_header = CLEAN_TUNNEL_HEADER
+            updated_fields.append('unlimited_plan_header')
+
         for tut_field in ('tutorial_android_url', 'tutorial_ios_url', 'tutorial_windows_url'):
             if getattr(setting, tut_field, '') in ('https://t.me/Telegram', '', None):
                 setattr(setting, tut_field, DEFAULT_CHANNEL_URL)

@@ -10,10 +10,10 @@ from aiogram.types import (
 BTN_FREE_TEST_PREFIX = "🎁 دریافت تست رایگان"
 BTN_FREE_TEST = "🎁 دریافت تست رایگان"
 BTN_BUY_SERVICE = "🛒 خرید سرویس"
-BTN_MY_SERVICES = "🔍 سرویس (های) من"
+BTN_MY_SERVICES = "🔍 سرویس‌های من"
 BTN_CHARGE_WALLET = "💳 افزایش موجودی"
 BTN_USER_ACCOUNT = "👤 حساب کاربری"
-BTN_REFERRAL_GIFT = "🎉 اشتراک رایگان (دعوت دوستان)"
+BTN_REFERRAL_GIFT = "🎉 اشتراک رایگان"
 BTN_SUPPORT = "💬 تیکت پشتیبانی"
 BTN_TUTORIALS = "📚 آموزش اتصال"
 BTN_CANCEL_ACTION = "انصراف و بازگشت 🔙"
@@ -22,57 +22,35 @@ MAIN_MENU_BUTTONS = {
     BTN_FREE_TEST,
     BTN_BUY_SERVICE,
     BTN_MY_SERVICES,
+    "🔍 سرویس (های) من",
     BTN_CHARGE_WALLET,
     BTN_USER_ACCOUNT,
     BTN_REFERRAL_GIFT,
+    "🎉 اشتراک رایگان (دعوت دوستان)",
     BTN_SUPPORT,
     BTN_TUTORIALS,
 }
 
 
-def make_reply_btn(
-    text: str,
-    style: str | None = None,
-    **kwargs,
-) -> KeyboardButton:
+def make_reply_btn(text: str, style: str | None = None, **kwargs) -> KeyboardButton:
     if style:
         try:
-            return KeyboardButton(
-                text=text,
-                style=style,
-                **kwargs,
-            )
+            return KeyboardButton(text=text, style=style, **kwargs)
         except Exception:
             pass
-    return KeyboardButton(
-        text=text,
-        **kwargs,
-    )
+    return KeyboardButton(text=text, **kwargs)
 
 
-def make_inline_btn(
-    text: str,
-    style: str | None = None,
-    **kwargs,
-) -> InlineKeyboardButton:
+def make_inline_btn(text: str, style: str | None = None, **kwargs) -> InlineKeyboardButton:
     if style:
         try:
-            return InlineKeyboardButton(
-                text=text,
-                style=style,
-                **kwargs,
-            )
+            return InlineKeyboardButton(text=text, style=style, **kwargs)
         except Exception:
             pass
-    return InlineKeyboardButton(
-        text=text,
-        **kwargs,
-    )
+    return InlineKeyboardButton(text=text, **kwargs)
 
 
-def is_main_menu_button(
-    text: str,
-) -> bool:
+def is_main_menu_button(text: str) -> bool:
     if not text:
         return False
     return text in MAIN_MENU_BUTTONS or text.startswith(BTN_FREE_TEST_PREFIX)
@@ -89,51 +67,23 @@ def get_main_menu_keyboard(
             if free_test_title
             else BTN_FREE_TEST_PREFIX
         )
-        rows.append(
-            [
-                make_reply_btn(
-                    text=btn_label,
-                    style="success",
-                )
-            ]
-        )
+        rows.append([make_reply_btn(text=btn_label, style="success")])
     rows.extend(
         [
             [
-                make_reply_btn(
-                    text=BTN_BUY_SERVICE,
-                    style="success",
-                ),
-                make_reply_btn(
-                    text=BTN_MY_SERVICES,
-                    style="primary",
-                ),
+                make_reply_btn(text=BTN_BUY_SERVICE, style="success"),
+                make_reply_btn(text=BTN_MY_SERVICES, style="primary"),
             ],
             [
-                make_reply_btn(
-                    text=BTN_CHARGE_WALLET,
-                    style="primary",
-                ),
-                make_reply_btn(
-                    text=BTN_USER_ACCOUNT,
-                    style="primary",
-                ),
+                make_reply_btn(text=BTN_CHARGE_WALLET, style="primary"),
+                make_reply_btn(text=BTN_USER_ACCOUNT, style="primary"),
             ],
             [
-                make_reply_btn(
-                    text=BTN_REFERRAL_GIFT,
-                    style="success",
-                )
+                make_reply_btn(text=BTN_REFERRAL_GIFT, style="success"),
             ],
             [
-                make_reply_btn(
-                    text=BTN_SUPPORT,
-                    style="danger",
-                ),
-                make_reply_btn(
-                    text=BTN_TUTORIALS,
-                    style="primary",
-                ),
+                make_reply_btn(text=BTN_SUPPORT, style="danger"),
+                make_reply_btn(text=BTN_TUTORIALS, style="primary"),
             ],
         ]
     )
@@ -146,14 +96,7 @@ def get_main_menu_keyboard(
 
 def get_cancel_reply_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                make_reply_btn(
-                    text=BTN_CANCEL_ACTION,
-                    style="danger",
-                )
-            ]
-        ],
+        keyboard=[[make_reply_btn(text=BTN_CANCEL_ACTION, style="danger")]],
         resize_keyboard=True,
     )
 
@@ -186,19 +129,19 @@ def get_tutorials_inline_kb(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text="📱 آموزش اندروید (Android)",
+                    text="📱 آموزش اندروید",
                     url=android_url,
                     style="success",
                 ),
                 make_inline_btn(
-                    text="🍏 آموزش آیفون (iOS)",
+                    text="🍏 آموزش آیفون",
                     url=ios_url,
                     style="primary",
                 ),
             ],
             [
                 make_inline_btn(
-                    text="💻 آموزش ویندوز (Windows)",
+                    text="💻 آموزش ویندوز",
                     url=windows_url,
                     style="primary",
                 ),
@@ -207,15 +150,13 @@ def get_tutorials_inline_kb(
     )
 
 
-def get_support_inline_kb(
-    support_username: str,
-) -> InlineKeyboardMarkup:
+def get_support_inline_kb(support_username: str) -> InlineKeyboardMarkup:
     clean_username = support_username.lstrip('@')
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text="👨‍💻 ارتباط مستقیم با پشتیبان",
+                    text="👨‍💻 پیام به پشتیبان",
                     url=f"https://t.me/{clean_username}",
                     style="primary",
                 )
@@ -231,9 +172,7 @@ def get_support_inline_kb(
     )
 
 
-def get_wallet_preset_amounts_kb(
-    prices: list[int],
-) -> InlineKeyboardMarkup:
+def get_wallet_preset_amounts_kb(prices: list[int]) -> InlineKeyboardMarkup:
     rows = []
     current_row = []
     for p in prices:
@@ -264,9 +203,7 @@ def get_wallet_preset_amounts_kb(
             ),
         ]
     )
-    return InlineKeyboardMarkup(
-        inline_keyboard=rows,
-    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def get_wallet_custom_amount_kb() -> InlineKeyboardMarkup:
@@ -299,16 +236,12 @@ def get_invoice_cancel_kb(
             [
                 make_inline_btn(
                     text="💳 کپی شماره کارت",
-                    copy_text=CopyTextButton(
-                        text=clean_card,
-                    ),
+                    copy_text=CopyTextButton(text=clean_card),
                     style="primary",
                 ),
                 make_inline_btn(
                     text="💰 کپی مبلغ",
-                    copy_text=CopyTextButton(
-                        text=str(amount),
-                    ),
+                    copy_text=CopyTextButton(text=str(amount)),
                     style="primary",
                 ),
             ],
@@ -323,14 +256,12 @@ def get_invoice_cancel_kb(
     )
 
 
-def get_admin_receipt_approval_kb(
-    tx_id: int,
-) -> InlineKeyboardMarkup:
+def get_admin_receipt_approval_kb(tx_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text="✅ تایید و شارژ کیف پول",
+                    text="✅ تایید و شارژ",
                     callback_data=f"adm_appr_tx:{tx_id}",
                     style="success",
                 ),
@@ -375,10 +306,7 @@ def get_buy_category_kb(
     )
 
 
-def get_plans_list_kb(
-    plans,
-    category: str,
-) -> InlineKeyboardMarkup:
+def get_plans_list_kb(plans, category: str) -> InlineKeyboardMarkup:
     keyboard = []
     btn_style = "success" if category == "direct" else "primary"
     for p in plans:
@@ -394,30 +322,26 @@ def get_plans_list_kb(
     keyboard.append(
         [
             make_inline_btn(
-                text="🔙 بازگشت به دسته‌بندی",
+                text="🔙 بازگشت",
                 callback_data="back_to_categories",
                 style="danger",
             )
         ]
     )
-    return InlineKeyboardMarkup(
-        inline_keyboard=keyboard,
-    )
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def get_service_naming_kb(
-    default_name: str,
-) -> InlineKeyboardMarkup:
+def get_service_naming_kb(default_name: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text="کنسل کن 🔙",
+                    text="بازگشت 🔙",
                     callback_data="back_to_categories",
                     style="danger",
                 ),
                 make_inline_btn(
-                    text="پیش‌فرض ✏️",
+                    text="نام پیش‌فرض ✏️",
                     callback_data=f"set_sname:{default_name}",
                     style="success",
                 ),
@@ -426,9 +350,7 @@ def get_service_naming_kb(
     )
 
 
-def get_confirm_purchase_kb(
-    plan_id: int,
-) -> InlineKeyboardMarkup:
+def get_confirm_purchase_kb(plan_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -447,21 +369,19 @@ def get_confirm_purchase_kb(
     )
 
 
-def get_insufficient_balance_kb(
-    deficit: int,
-) -> InlineKeyboardMarkup:
+def get_insufficient_balance_kb(deficit: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text=f"💳 افزایش مستقیم کسری ({deficit:,} تومان)",
+                    text=f"💳 پرداخت کسری ({deficit:,} تومان)",
                     callback_data=f"charge_amt:{deficit}",
                     style="success",
                 )
             ],
             [
                 make_inline_btn(
-                    text="🔙 بازگشت به منوی اصلی",
+                    text="🔙 انصراف",
                     callback_data="cancel_buy_flow",
                     style="danger",
                 )
@@ -479,7 +399,7 @@ def get_referral_inline_kb(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text="ارسال لینک به دوستان ↪️",
+                    text="ارسال دعوت‌نامه به دوستان ↪️",
                     url=share_url,
                     style="success",
                 ),
@@ -492,9 +412,7 @@ def get_referral_inline_kb(
                 ),
                 make_inline_btn(
                     text="📋 کپی لینک دعوت",
-                    copy_text=CopyTextButton(
-                        text=invite_link,
-                    ),
+                    copy_text=CopyTextButton(text=invite_link),
                     style="primary",
                 ),
             ],
@@ -509,14 +427,12 @@ def get_referral_inline_kb(
     )
 
 
-def get_admin_send_config_kb(
-    order_id: int,
-) -> InlineKeyboardMarkup:
+def get_admin_send_config_kb(order_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text="🔗 ثبت و ارسال سریع لینک کانفیگ",
+                    text="🔗 ثبت و ارسال لینک کانفیگ",
                     callback_data=f"adm_set_cfg:{order_id}",
                     style="success",
                 )
@@ -525,14 +441,12 @@ def get_admin_send_config_kb(
     )
 
 
-def get_admin_reply_ticket_kb(
-    ticket_id: int,
-) -> InlineKeyboardMarkup:
+def get_admin_reply_ticket_kb(ticket_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 make_inline_btn(
-                    text="✍️ پاسخ سریع به تیکت",
+                    text="✍️ پاسخ به تیکت",
                     callback_data=f"adm_rep_tkt:{ticket_id}",
                     style="primary",
                 )
@@ -579,24 +493,19 @@ def get_admin_sticker_assign_kb() -> InlineKeyboardMarkup:
     )
 
 
-def get_service_actions_kb(
-    order_id: int,
-    config_link: str,
-) -> InlineKeyboardMarkup:
+def get_service_actions_kb(order_id: int, config_link: str) -> InlineKeyboardMarkup:
     rows = []
     clean_link = config_link.strip()
     if 0 < len(clean_link) <= 256:
         rows.append(
             [
                 make_inline_btn(
-                    text="📋 کپی لینک کانفیگ",
-                    copy_text=CopyTextButton(
-                        text=clean_link,
-                    ),
+                    text="📋 کپی لینک",
+                    copy_text=CopyTextButton(text=clean_link),
                     style="primary",
                 ),
                 make_inline_btn(
-                    text="📷 دریافت QR Code",
+                    text="📷 دریافت بارکد",
                     callback_data=f"get_qr:{order_id}",
                     style="success",
                 ),
@@ -606,15 +515,13 @@ def get_service_actions_kb(
         rows.append(
             [
                 make_inline_btn(
-                    text="📷 دریافت QR Code",
+                    text="📷 دریافت بارکد",
                     callback_data=f"get_qr:{order_id}",
                     style="success",
                 )
             ]
         )
-    return InlineKeyboardMarkup(
-        inline_keyboard=rows,
-    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def get_admin_panel_kb() -> InlineKeyboardMarkup:
@@ -643,9 +550,7 @@ def get_admin_panel_kb() -> InlineKeyboardMarkup:
     )
 
 
-def get_force_join_kb(
-    channels: list,
-) -> InlineKeyboardMarkup:
+def get_force_join_kb(channels: list) -> InlineKeyboardMarkup:
     rows = []
     for ch in channels:
         rows.append(
@@ -660,12 +565,10 @@ def get_force_join_kb(
     rows.append(
         [
             make_inline_btn(
-                text="✅ عضو شدم (بررسی و ادامه)",
+                text="✅ عضو شدم",
                 callback_data="verify_join",
                 style="success",
             )
         ]
     )
-    return InlineKeyboardMarkup(
-        inline_keyboard=rows,
-    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)

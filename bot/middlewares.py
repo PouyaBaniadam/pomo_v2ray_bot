@@ -1,29 +1,11 @@
-from collections import (
-    defaultdict,
-    deque,
-)
+from collections import defaultdict, deque
 import logging
 import time
-from typing import (
-    Callable,
-    Dict,
-    Any,
-    Awaitable,
-)
-from aiogram import (
-    BaseMiddleware,
-    Bot,
-)
-from aiogram.types import (
-    Message,
-    CallbackQuery,
-    TelegramObject,
-)
+from typing import Callable, Dict, Any, Awaitable
+from aiogram import BaseMiddleware, Bot
+from aiogram.types import Message, CallbackQuery, TelegramObject
 from aiogram.enums import ChatMemberStatus
-from bot.keyboards import (
-    is_main_menu_button,
-    get_force_join_kb,
-)
+from bot.keyboards import is_main_menu_button, get_force_join_kb
 from core.services import (
     upsert_telegram_user,
     get_active_required_channels,
@@ -64,10 +46,7 @@ async def get_cached_rate_limit_config() -> tuple[int, set[int]]:
     )
 
 
-def check_receipt_upload_cooldown(
-    user_id: int,
-    cooldown_seconds: float = 5.0,
-) -> float:
+def check_receipt_upload_cooldown(user_id: int, cooldown_seconds: float = 5.0) -> float:
     now = time.monotonic()
     last_attempt = RECEIPT_UPLOAD_COOLDOWN.get(user_id, 0.0)
     remaining = cooldown_seconds - (now - last_attempt)
@@ -77,9 +56,7 @@ def check_receipt_upload_cooldown(
     return 0.0
 
 
-def normalize_channel_id(
-    raw_id: str,
-) -> str | int:
+def normalize_channel_id(raw_id: str) -> str | int:
     val = raw_id.strip()
     if val.startswith("https://t.me/"):
         val = val.replace("https://t.me/", "").strip("/")
@@ -92,10 +69,7 @@ def normalize_channel_id(
     return val
 
 
-async def get_unjoined_channels(
-    bot: Bot,
-    user_id: int,
-) -> list:
+async def get_unjoined_channels(bot: Bot, user_id: int) -> list:
     admin_ids = await get_all_admin_ids()
     if user_id in admin_ids:
         return []
@@ -108,10 +82,7 @@ async def get_unjoined_channels(
     for ch in channels:
         target_chat_id = normalize_channel_id(ch.chat_id)
         try:
-            member = await bot.get_chat_member(
-                chat_id=target_chat_id,
-                user_id=user_id,
-            )
+            member = await bot.get_chat_member(chat_id=target_chat_id, user_id=user_id)
             is_member = (
                 member.status in VALID_MEMBER_STATUSES
                 or (
@@ -139,17 +110,11 @@ class RateLimitMiddleware(BaseMiddleware):
     ) -> Any:
         tg_user = data.get("event_from_user")
         if not tg_user or tg_user.is_bot:
-            return await handler(
-                event,
-                data,
-            )
+            return await handler(event, data)
 
         limit_per_minute, admin_ids = await get_cached_rate_limit_config()
         if tg_user.id in admin_ids:
-            return await handler(
-                event,
-                data,
-            )
+            return await handler(event, data)
 
         now = time.monotonic()
         window_seconds = 60.0
@@ -165,7 +130,7 @@ class RateLimitMiddleware(BaseMiddleware):
                 if isinstance(event, CallbackQuery):
                     try:
                         await event.answer(
-                            "⏳ تعداد درخواست‌های شما بیش از حد مجاز است! لطفاً کمی صبر کنید.",
+                            "⏳ تعداد درخواست‌های شما زیاد است. لطفاً چند لحظه صبر کنید.",
                             show_alert=True,
                         )
                     except Exception:
@@ -173,8 +138,7 @@ class RateLimitMiddleware(BaseMiddleware):
                 elif isinstance(event, Message):
                     try:
                         await event.answer(
-                            "⏳ <b>تعداد درخواست‌های شما بیش از حد مجاز است!</b>\n"
-                            "لطفاً چند ثانیه صبر کرده و مجدداً تلاش کنید.",
+                            "⏳ لطفاً چند ثانیه صبر کنید و دوباره امتحان کنید.",
                             parse_mode="HTML",
                         )
                     except Exception:
@@ -182,10 +146,7 @@ class RateLimitMiddleware(BaseMiddleware):
             return None
 
         history.append(now)
-        return await handler(
-            event,
-            data,
-        )
+        return await handler(event, data)
 
 
 class UserUpsertAndAntiLoopMiddleware(BaseMiddleware):
@@ -213,8 +174,8 @@ class UserUpsertAndAntiLoopMiddleware(BaseMiddleware):
                     PENDING_USER_EVENTS[tg_user.id] = event
 
                     join_text = (
-                        "🔒 <b>عضویت در کانال الزامی است!</b>\n\n"
-                        "برای استفاده از ربات و ادامه عملیات قبلی خود، لطفاً ابتدا از طریق دکمه‌های زیر در کانال عضو شوید و سپس روی دکمه <b>«✅ عضو شدم»</b> کلیک کنید:"
+                        "🔒 <b>عضویت در کانال</b>\n\n"
+                        "برای استفاده از ربات، ابتدا در کانال زیر عضو شوید و سپس دکمه <b>«✅ عضو شدم»</b> را بزنید:"
                     )
                     kb = get_force_join_kb(unjoined_channels)
 
@@ -226,7 +187,7 @@ class UserUpsertAndAntiLoopMiddleware(BaseMiddleware):
                         )
                     elif isinstance(event, CallbackQuery) and event.message:
                         await event.answer(
-                            "🔒 ابتدا در کانال عضو شوید!",
+                            "🔒 ابتدا در کانال عضو شوید.",
                             show_alert=True,
                         )
                         await event.message.answer(
@@ -250,7 +211,7 @@ class UserUpsertAndAntiLoopMiddleware(BaseMiddleware):
                 if db_user.is_banned:
                     if isinstance(event, Message):
                         await event.answer(
-                            "⛔️ حساب کاربری شما در ربات مسدود شده است."
+                            "⛔️ حساب کاربری شما مسدود شده است."
                         )
                     return
                 data["db_user"] = db_user
@@ -262,7 +223,4 @@ class UserUpsertAndAntiLoopMiddleware(BaseMiddleware):
             ):
                 await state.clear()
 
-        return await handler(
-            event,
-            data,
-        )
+        return await handler(event, data)
